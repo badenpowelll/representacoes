@@ -32,6 +32,8 @@ Interface:
 - ✅ Compatibilidade: calcular, ver motivos do score, aprovar (gera lead) ou rejeitar
 - ✅ Catálogos: upload de PDF privado (validação de assinatura %PDF, SHA-256, link assinado de 5 min)
 - ✅ MFA obrigatório para administradores (AAL2 exigido no banco; TOTP no onboarding e no login) — ADR 0004
+- ✅ Exigência de MFA configurável por ambiente (desligada só no projeto de teste) — ADR 0005
+- ⏳ MFA opcional por representação (pedido do proprietário, 22/11)
 - ⏳ Códigos de recuperação de MFA próprios (hoje a recuperação é pelo suporte da plataforma)
 - ⏳ Extração de texto do PDF (fila assíncrona; conteúdo tratado como não confiável), novas versões e publicação
 - ✅ Contatos das empresas: base legal, consentimento com data, oposição (vai para a supressão) e exclusão a pedido

@@ -15,6 +15,9 @@ export async function createTenant(_: ActionState, form: FormData): Promise<Acti
       form,
     );
   }
-  // Onboarding: o administrador cadastra o segundo fator antes de gerenciar a representação.
+  // Onboarding: o administrador cadastra o segundo fator antes de gerenciar a
+  // representação, salvo se o ambiente dispensar (só teste; fail-closed).
+  const { data: mfaRequired, error: mfaError } = await supabase.rpc("admin_mfa_required");
+  if (!mfaError && mfaRequired === false) redirect(`/app/${data}`);
   redirect(`/app/seguranca?novo=1&next=${encodeURIComponent(`/app/${data}`)}`);
 }

@@ -83,3 +83,41 @@ describe("demais papéis não dependem de AAL2", () => {
     expect(inv.ok).toBe(true);
   });
 });
+
+describe("configuração do ambiente: MFA de admin (app.platform_settings)", () => {
+  const setRequired = (v: boolean) => pool.query("update app.platform_settings set require_admin_mfa = $1", [v]);
+
+  it("vem ligada por padrão e o usuário não consegue alterá-la", async () => {
+    expect((await pool.query("select require_admin_mfa from app.platform_settings")).rows[0].require_admin_mfa).toBe(true);
+    const r = await tryAsUser(pool, admin, (db) => db.query("update app.platform_settings set require_admin_mfa = false"));
+    expect(r).toMatchObject({ ok: false, code: "42501" });
+    const seen = await asUser(pool, admin, async (db) => (await db.query("select public.admin_mfa_required() v")).rows[0].v, aal1);
+    expect(seen).toBe(true);
+  });
+
+  it("desligada (só teste), admin com AAL1 escreve; religada, volta a só ler; mudanças ficam no log", async () => {
+    await setRequired(false);
+    try {
+      const ins = await tryAsUser(pool, admin, (db) =>
+        db.query("insert into public.industries (tenant_id, name) values ($1, 'Ind sem MFA')", [tenant]), aal1);
+      expect(ins).toMatchObject({ ok: true });
+    } finally {
+      await setRequired(true);
+    }
+    const again = await tryAsUser(pool, admin, (db) =>
+      db.query("insert into public.industries (tenant_id, name) values ($1, 'Ind 2')", [tenant]), aal1);
+    expect(again).toMatchObject({ ok: false, code: "42501" });
+    const log = (await pool.query("select require_admin_mfa from app.platform_settings_log order by id")).rows;
+    expect(log.map((r) => r.require_admin_mfa)).toEqual([false, true]);
+  });
+
+  it("sem a linha de configuração, a exigência vale (fail-closed)", async () => {
+    await pool.query("delete from app.platform_settings");
+    try {
+      const v = (await pool.query("select app.admin_mfa_required() v")).rows[0].v;
+      expect(v).toBe(true);
+    } finally {
+      await pool.query("insert into app.platform_settings default values");
+    }
+  });
+});

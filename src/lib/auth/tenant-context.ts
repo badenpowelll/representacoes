@@ -52,11 +52,14 @@ export async function requireTenantContext(tenantId: string): Promise<TenantCont
   // O banco aplica a mesma regra (app.has_role lê o claim "aal" do JWT).
   const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
   const level = aal?.currentLevel ?? "aal1";
+  // Configuração do ambiente (app.platform_settings). Na dúvida, exige (fail-closed).
+  const { data: required, error: reqError } = await supabase.rpc("admin_mfa_required");
+  const mfaRequired = reqError ? true : required !== false;
   return {
     userId: user.id,
     tenantId,
     membershipRole: data.role,
-    role: effectiveRole(data.role, level),
-    mfaPending: data.role === "tenant_admin" && level !== "aal2",
+    role: effectiveRole(data.role, level, mfaRequired),
+    mfaPending: data.role === "tenant_admin" && mfaRequired && level !== "aal2",
   };
 }

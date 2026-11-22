@@ -65,6 +65,6 @@ export type AssuranceLevel = "aal1" | "aal2";
  * Papel efetivo da sessão. Espelha app.has_role no banco: administrador sem
  * MFA verificado na sessão (AAL1) atua como "leitura" até concluir o segundo fator.
  */
-export function effectiveRole(role: TenantRole, aal: string | null | undefined): TenantRole {
-  return role === "tenant_admin" && aal !== "aal2" ? "viewer" : role;
+export function effectiveRole(role: TenantRole, aal: string | null | undefined, mfaRequired = true): TenantRole {
+  return role === "tenant_admin" && mfaRequired && aal !== "aal2" ? "viewer" : role;
 }

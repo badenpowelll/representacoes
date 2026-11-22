@@ -33,6 +33,8 @@ describe("effectiveRole (MFA)", () => {
     expect(effectiveRole("tenant_admin", "aal1")).toBe("viewer");
     expect(effectiveRole("tenant_admin", undefined)).toBe("viewer");
     expect(effectiveRole("tenant_admin", "aal2")).toBe("tenant_admin");
+    expect(effectiveRole("tenant_admin", "aal1", false)).toBe("tenant_admin");
+    expect(effectiveRole("tenant_admin", "aal1", true)).toBe("viewer");
   });
   it("demais papéis não dependem do nível da sessão", () => {
     expect(effectiveRole("manager", "aal1")).toBe("manager");
