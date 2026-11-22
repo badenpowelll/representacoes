@@ -102,3 +102,28 @@ export function formToObject(form: FormData): Record<string, string> {
   for (const [k, v] of form.entries()) if (typeof v === "string") out[k] = v;
   return out;
 }
+
+export const LEGAL_BASES = ["legitimate_interest", "consent", "contract", "legal_obligation"] as const;
+export const LEGAL_BASIS_LABELS: Record<(typeof LEGAL_BASES)[number], string> = {
+  legitimate_interest: "Legítimo interesse (B2B)",
+  consent: "Consentimento",
+  contract: "Execução de contrato",
+  legal_obligation: "Obrigação legal",
+};
+
+/** Contato de empresa (LGPD: origem e base legal obrigatórias; consentimento quando for a base). */
+export const contactSchema = z
+  .object({
+    company_id: z.uuid("Empresa inválida"),
+    name: z.string().trim().min(1, "Informe o nome").max(200),
+    role_title: optionalText(120),
+    email: optionalText(254).refine((v) => v == null || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v), { message: "E-mail inválido" }),
+    phone: optionalText(40).refine((v) => v == null || /^[0-9()+\-\s]{8,40}$/.test(v), { message: "Telefone inválido" }),
+    legal_basis: z.enum(LEGAL_BASES, { message: "Selecione a base legal" }),
+    consent: z.string().optional().transform((v) => v === "on"),
+    source: z.string().trim().min(2, "Informe a origem do dado (LGPD)").max(300),
+  })
+  .refine((c) => c.legal_basis !== "consent" || c.consent, {
+    path: ["consent"],
+    message: "Confirme que o contato deu consentimento",
+  });

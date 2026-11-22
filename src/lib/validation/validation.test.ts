@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatCnpj, isValidCnpj } from "./cnpj";
-import { companySchema, dealSchema, industrySchema, moveDealSchema, optionalMunicipality } from "./schemas";
+import { companySchema, dealSchema, industrySchema, moveDealSchema, optionalMunicipality, contactSchema } from "./schemas";
 
 describe("CNPJ", () => {
   it("valida dígitos verificadores", () => {
@@ -47,5 +47,24 @@ describe("município opcional", () => {
   it("rejeita código fora do formato IBGE", () => {
     expect(optionalMunicipality.safeParse("123").success).toBe(false);
     expect(optionalMunicipality.safeParse("24081O2").success).toBe(false);
+  });
+});
+
+describe("contato (LGPD)", () => {
+  const base = { company_id: "6f1c1e0a-3b7a-4c55-9d43-6f0b8f2d9a11", name: "Ana", source: "feira", legal_basis: "legitimate_interest" };
+  it("exige origem e base legal", () => {
+    expect(contactSchema.safeParse({ ...base, source: "" }).success).toBe(false);
+    expect(contactSchema.safeParse({ ...base, legal_basis: "" }).success).toBe(false);
+    expect(contactSchema.parse(base).consent).toBe(false);
+  });
+  it("base consentimento exige a confirmação", () => {
+    const r = contactSchema.safeParse({ ...base, legal_basis: "consent" });
+    expect(r.success).toBe(false);
+    expect(contactSchema.parse({ ...base, legal_basis: "consent", consent: "on" }).consent).toBe(true);
+  });
+  it("valida e-mail e telefone", () => {
+    expect(contactSchema.safeParse({ ...base, email: "x@" }).success).toBe(false);
+    expect(contactSchema.safeParse({ ...base, phone: "abc" }).success).toBe(false);
+    expect(contactSchema.parse({ ...base, email: "", phone: "(84) 99999-0000" }).email).toBeNull();
   });
 });

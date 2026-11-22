@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireTenantPage } from "@/lib/auth/session";
 import { can } from "@/lib/auth/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -47,7 +48,11 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
             <tbody>
               {data.map((c) => (
                 <tr key={c.id} className="border-b">
-                  <td className="py-2 pr-4 font-medium">{c.legal_name}</td>
+                  <td className="py-2 pr-4 font-medium">
+                    <Link href={`/app/${tenantId}/empresas/${c.id}`} className="underline">
+                      {c.legal_name}
+                    </Link>
+                  </td>
                   <td className="py-2 pr-4">{c.cnpj ? formatCnpj(c.cnpj) : "—"}</td>
                   <td className="py-2 pr-4">{c.cnae ?? "—"}</td>
                   <td className="py-2 pr-4">{c.state_code ?? "—"}</td>

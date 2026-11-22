@@ -105,6 +105,22 @@ test("cadastro, onboarding, CRM, funil e isolamento entre representações", asy
   await a.getByRole("button", { name: "Cadastrar empresa" }).click();
   await expect(a.getByRole("cell", { name: "Loja de Materiais Natal" })).toBeVisible();
 
+  // Contatos (LGPD): consentimento exige confirmação; oposição bloqueia comunicação
+  await a.getByRole("link", { name: "Loja de Materiais Natal" }).click();
+  await a.getByLabel("Nome do contato").fill("Rita Compras");
+  await a.getByLabel("E-mail").fill(`rita-${run}@loja.test`);
+  await a.getByLabel("Base legal (LGPD)").selectOption("consent");
+  await a.getByLabel("Origem do contato").fill("cartão de visita");
+  await a.getByRole("button", { name: "Adicionar contato" }).click();
+  await expect(a.getByText("Confirme que o contato deu consentimento")).toBeVisible();
+  await a.getByLabel(/deu consentimento/).check();
+  await a.getByRole("button", { name: "Adicionar contato" }).click();
+  await expect(a.getByText("Contato cadastrado.")).toBeVisible();
+  const rita = a.getByRole("listitem").filter({ hasText: "Rita Compras" });
+  await expect(rita).toContainText("consentimento em");
+  await rita.getByRole("button", { name: "Registrar oposição (não contatar)" }).click();
+  await expect(rita).toContainText("Comunicação bloqueada");
+
   // Funil: criar, mover, perda sem motivo bloqueada
   await a.getByRole("link", { name: "Funil" }).click();
   await a.getByLabel("Título").fill("Pedido de cimento");

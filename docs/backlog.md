@@ -34,7 +34,8 @@ Interface:
 - ✅ MFA obrigatório para administradores (AAL2 exigido no banco; TOTP no onboarding e no login) — ADR 0004
 - ⏳ Códigos de recuperação de MFA próprios (hoje a recuperação é pelo suporte da plataforma)
 - ⏳ Extração de texto do PDF (fila assíncrona; conteúdo tratado como não confiável), novas versões e publicação
-- ⏳ Produtos (cadastro/importação), contatos das empresas, prospecção manual com fonte
+- ✅ Contatos das empresas: base legal, consentimento com data, oposição (vai para a supressão) e exclusão a pedido
+- ⏳ Produtos (cadastro/importação), prospecção manual com fonte
 - ✅ Municípios do IBGE: snapshot CSV versionado com data e sha256, migration gerada por script
 - ✅ Workflow manual de E2E (`workflow_dispatch`), ainda não disparado
 - ⏳ E2E automático em cada PR (decisão do proprietário: minutos do Actions)
