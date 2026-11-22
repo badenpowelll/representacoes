@@ -6,6 +6,7 @@ import { type ActionState, dbErrorMessage, withValues, zodFieldErrors } from "@/
 import { can } from "@/lib/auth/permissions";
 import { AuthorizationError, requireTenantContext } from "@/lib/auth/tenant-context";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { storeCatalogUpload } from "@/lib/catalogs/upload";
 
 const MAX_BYTES = 50 * 1024 * 1024;
 
@@ -26,6 +27,11 @@ function looksLikePdf(bytes: Uint8Array) {
 /**
  * Envia o PDF para o bucket privado sob "<tenant_id>/<catalog_id>/" usando a
  * sessão do usuário (as políticas de Storage valem) e registra a versão 1 em rascunho.
+ * Falhas intermediárias são compensadas (ver storeCatalogUpload).
+ *
+ * Limitações conhecidas (antes de produção): o arquivo passa pela memória da
+ * server action; migrar para upload resumível direto ao Storage com path
+ * pré-autorizado, quarentena e validação assíncrona em parser isolado.
  */
 export async function uploadCatalog(_: ActionState, form: FormData): Promise<ActionState> {
   try {
@@ -41,29 +47,44 @@ export async function uploadCatalog(_: ActionState, form: FormData): Promise<Act
     if (!looksLikePdf(bytes)) return withValues({ fieldErrors: { file: "O arquivo precisa ser um PDF" } }, form);
 
     const supabase = await createSupabaseServerClient();
-    const { data: catalog, error: catErr } = await supabase
-      .from("catalogs")
-      .insert({ ...parsed.data, tenant_id: ctx.tenantId })
-      .select("id")
-      .single();
-    if (catErr || !catalog) return withValues({ message: dbErrorMessage(catErr) }, form);
-
-    // Nome do objeto nunca usa o nome enviado pelo usuário.
-    const path = `${ctx.tenantId}/${catalog.id}/v1-${randomUUID()}.pdf`;
-    const up = await supabase.storage.from("catalogs").upload(path, bytes, { contentType: "application/pdf", upsert: false });
-    if (up.error) {
-      await supabase.from("catalogs").delete().eq("id", catalog.id);
-      return withValues({ message: "Não foi possível enviar o arquivo." }, form);
-    }
-    const { error: verErr } = await supabase.from("catalog_versions").insert({
-      tenant_id: ctx.tenantId,
-      catalog_id: catalog.id,
-      version: 1,
-      storage_path: path,
-      size_bytes: bytes.length,
-      file_sha256: createHash("sha256").update(bytes).digest("hex"),
+    const bucket = supabase.storage.from("catalogs");
+    const result = await storeCatalogUpload(ctx.tenantId, bytes, {
+      insertCatalog: async () => {
+        const { data, error } = await supabase
+          .from("catalogs")
+          .insert({ ...parsed.data, tenant_id: ctx.tenantId })
+          .select("id")
+          .single();
+        return error || !data ? { error: dbErrorMessage(error) } : { id: data.id as string };
+      },
+      deleteCatalog: async (id) => {
+        const { error } = await supabase.from("catalogs").delete().eq("id", id).eq("tenant_id", ctx.tenantId);
+        return { error: error?.message };
+      },
+      // Nome do objeto nunca usa o nome enviado pelo usuário.
+      putObject: async (path, data) => {
+        const { error } = await bucket.upload(path, data, { contentType: "application/pdf", upsert: false });
+        return { error: error ? "Não foi possível enviar o arquivo." : undefined };
+      },
+      removeObject: async (path) => {
+        const { error } = await bucket.remove([path]);
+        return { error: error?.message };
+      },
+      insertVersion: async (catalogId, path) => {
+        const { error } = await supabase.from("catalog_versions").insert({
+          tenant_id: ctx.tenantId,
+          catalog_id: catalogId,
+          version: 1,
+          storage_path: path,
+          size_bytes: bytes.length,
+          file_sha256: createHash("sha256").update(bytes).digest("hex"),
+        });
+        return { error: error ? dbErrorMessage(error) : undefined };
+      },
+      newId: randomUUID,
+      log: (event, data) => console.warn(JSON.stringify({ event, ...data })),
     });
-    if (verErr) return withValues({ message: dbErrorMessage(verErr) }, form);
+    if (!result.ok) return withValues({ message: result.error }, form);
     revalidatePath(`/app/${ctx.tenantId}/catalogos`);
     return { ok: true, nonce: Date.now(), message: "Catálogo enviado como rascunho." };
   } catch (e) {
