@@ -165,33 +165,140 @@ describe("memberships", () => {
 });
 
 describe("convites", () => {
-  it("admin convida no próprio tenant, mas não no de outro", async () => {
-    const own = await tryAsUser(pool, alfaAdmin, (db) =>
+  const invite = (user: string, tenant: string, email: string, role = "assistant") =>
+    asUser(pool, user, async (db) =>
+      (await db.query("select * from public.create_invitation($1, $2, $3)", [tenant, email, role])).rows[0] as {
+        invitation_id: string;
+        token: string;
+      },
+    );
+
+  it("admin convida no próprio tenant; o banco guarda só o hash do token", async () => {
+    const { invitation_id, token } = await invite(alfaAdmin, alfa, "Novo@Alfa.test");
+    expect(token).toMatch(/^[0-9a-f]{64}$/);
+    const { rows } = await pool.query("select email, token_hash from public.invitations where id = $1", [invitation_id]);
+    expect(rows[0].email).toBe("novo@alfa.test");
+    expect(rows[0].token_hash).not.toBe(token);
+  });
+
+  it("admin de Beta não convida em Alfa", async () => {
+    const r = await tryAsUser(pool, betaAdmin, (db) =>
+      db.query("select * from public.create_invitation($1, 'x@beta.test', 'assistant')", [alfa]),
+    );
+    expect(r.ok).toBe(false);
+  });
+
+  it("representante não lê nem cria convites; insert direto na tabela é negado", async () => {
+    const n = await asUser(pool, alfaRep, async (db) => (await db.query("select * from public.invitations")).rowCount);
+    expect(n).toBe(0);
+    const rpc = await tryAsUser(pool, alfaRep, (db) =>
+      db.query("select * from public.create_invitation($1, 'y@alfa.test', 'viewer')", [alfa]),
+    );
+    expect(rpc.ok).toBe(false);
+    const direct = await tryAsUser(pool, alfaAdmin, (db) =>
       db.query(
-        "insert into public.invitations (tenant_id, email, role, token_hash, invited_by) values ($1, 'novo@alfa.test', 'assistant', 'h1', $2)",
+        "insert into public.invitations (tenant_id, email, role, token_hash, invited_by) values ($1, 'z@alfa.test', 'viewer', 'h', $2)",
         [alfa, alfaAdmin],
       ),
     );
-    expect(own.ok).toBe(true);
-    const cross = await tryAsUser(pool, betaAdmin, (db) =>
-      db.query(
-        "insert into public.invitations (tenant_id, email, role, token_hash, invited_by) values ($1, 'x@beta.test', 'assistant', 'h2', $2)",
-        [alfa, betaAdmin],
-      ),
-    );
-    expect(cross.ok).toBe(false);
+    expect(direct.ok).toBe(false);
   });
 
-  it("representante não lê nem cria convites", async () => {
-    const n = await asUser(pool, alfaRep, async (db) => (await db.query("select * from public.invitations")).rowCount);
-    expect(n).toBe(0);
-    const r = await tryAsUser(pool, alfaRep, (db) =>
-      db.query(
-        "insert into public.invitations (tenant_id, email, role, token_hash, invited_by) values ($1, 'y@alfa.test', 'viewer', 'h3', $2)",
-        [alfa, alfaRep],
-      ),
+  it("gerente não convida administrador nem altera o papel de um convite", async () => {
+    const manager = await createUser(pool, "gerente@alfa.test");
+    await asUser(pool, alfaAdmin, (db) =>
+      db.query("insert into public.memberships (tenant_id, user_id, role) values ($1, $2, 'manager')", [alfa, manager]),
+    );
+    const r = await tryAsUser(pool, manager, (db) =>
+      db.query("select * from public.create_invitation($1, 'chefe@alfa.test', 'tenant_admin')", [alfa]),
     );
     expect(r.ok).toBe(false);
+    const { invitation_id } = await invite(manager, alfa, "aux@alfa.test", "viewer");
+    const up = await tryAsUser(pool, manager, (db) =>
+      db.query("update public.invitations set role = 'tenant_admin' where id = $1", [invitation_id]),
+    );
+    expect(up.ok).toBe(false);
+  });
+
+  it("convidado aceita uma vez; reutilizar o token falha", async () => {
+    const guest = await createUser(pool, "convidado@alfa.test");
+    const { token } = await invite(alfaAdmin, alfa, "convidado@alfa.test", "representative");
+    const tenant = await asUser(pool, guest, async (db) =>
+      (await db.query("select public.accept_invitation($1) as t", [token])).rows[0].t,
+    );
+    expect(tenant).toBe(alfa);
+    const role = (await pool.query("select role from public.memberships where user_id = $1", [guest])).rows[0].role;
+    expect(role).toBe("representative");
+    const again = await tryAsUser(pool, guest, (db) => db.query("select public.accept_invitation($1)", [token]));
+    expect(again.ok).toBe(false);
+  });
+
+  it("token de outro e-mail, expirado, revogado ou inexistente é rejeitado", async () => {
+    const { token: forOther } = await invite(alfaAdmin, alfa, "outra@alfa.test");
+    const wrongUser = await tryAsUser(pool, outsider, (db) => db.query("select public.accept_invitation($1)", [forOther]));
+    expect(wrongUser.ok).toBe(false);
+
+    const exp = await createUser(pool, "expira@alfa.test");
+    const { invitation_id, token: expired } = await invite(alfaAdmin, alfa, "expira@alfa.test");
+    await pool.query("update public.invitations set expires_at = now() - interval '1 minute' where id = $1", [
+      invitation_id,
+    ]);
+    const r1 = await tryAsUser(pool, exp, (db) => db.query("select public.accept_invitation($1)", [expired]));
+    expect(r1.ok).toBe(false);
+
+    const rev = await createUser(pool, "revogado@alfa.test");
+    const inv = await invite(alfaAdmin, alfa, "revogado@alfa.test");
+    await asUser(pool, alfaAdmin, (db) => db.query("select public.revoke_invitation($1)", [inv.invitation_id]));
+    const r2 = await tryAsUser(pool, rev, (db) => db.query("select public.accept_invitation($1)", [inv.token]));
+    expect(r2.ok).toBe(false);
+
+    const r3 = await tryAsUser(pool, rev, (db) => db.query("select public.accept_invitation('nao-existe')"));
+    expect(r3.ok).toBe(false);
+  });
+
+  it("admin de Beta não revoga convite de Alfa", async () => {
+    const { invitation_id } = await invite(alfaAdmin, alfa, "protegido@alfa.test");
+    const r = await tryAsUser(pool, betaAdmin, (db) => db.query("select public.revoke_invitation($1)", [invitation_id]));
+    expect(r.ok).toBe(false);
+  });
+});
+
+describe("concorrência", () => {
+  it("duas transações simultâneas não removem os dois últimos administradores", async () => {
+    const admin1 = await createUser(pool, "a1@gama.test");
+    const admin2 = await createUser(pool, "a2@gama.test");
+    const gama = await asUser(pool, admin1, async (db) =>
+      (await db.query("select public.create_tenant('Gama', 'gama') as id")).rows[0].id,
+    );
+    await asUser(pool, admin1, (db) =>
+      db.query("insert into public.memberships (tenant_id, user_id, role) values ($1, $2, 'tenant_admin')", [gama, admin2]),
+    );
+
+    const c1 = await pool.connect();
+    const c2 = await pool.connect();
+    const begin = async (c: typeof c1, uid: string) => {
+      await c.query("begin");
+      await c.query("set local role authenticated");
+      await c.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: uid })]);
+    };
+    try {
+      await begin(c1, admin1);
+      await begin(c2, admin2);
+      // cada admin rebaixa a si mesmo; ambos enxergam o outro ainda ativo
+      await c1.query("update public.memberships set role = 'viewer' where user_id = $1 and tenant_id = $2", [admin1, gama]);
+      await c2.query("update public.memberships set role = 'viewer' where user_id = $1 and tenant_id = $2", [admin2, gama]);
+      const results = await Promise.allSettled([c1.query("commit"), c2.query("commit")]);
+      const failed = results.filter((r) => r.status === "rejected");
+      expect(failed).toHaveLength(1);
+    } finally {
+      c1.release();
+      c2.release();
+    }
+    const { rows } = await pool.query(
+      "select count(*)::int as n from public.memberships where tenant_id = $1 and role = 'tenant_admin' and status = 'active'",
+      [gama],
+    );
+    expect(rows[0].n).toBe(1);
   });
 });
 
@@ -200,7 +307,8 @@ describe("auditoria", () => {
     const alfaLogs = await asUser(pool, alfaAdmin, async (db) =>
       (await db.query("select action, tenant_id from public.audit_logs")).rows,
     );
-    expect(alfaLogs).toEqual([{ action: "tenant.created", tenant_id: alfa }]);
+    expect(alfaLogs).toContainEqual({ action: "tenant.created", tenant_id: alfa });
+    expect(alfaLogs.every((l) => l.tenant_id === alfa)).toBe(true);
     const repLogs = await asUser(pool, alfaRep, async (db) => (await db.query("select * from public.audit_logs")).rowCount);
     expect(repLogs).toBe(0);
   });
