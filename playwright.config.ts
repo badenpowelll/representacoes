@@ -1,4 +1,10 @@
 import { defineConfig } from "@playwright/test";
+import { assertLocalUrl } from "./tests/support/local-url";
+
+// O e2e cria contas: só roda contra app, Supabase e Mailpit locais.
+const baseURL = assertLocalUrl(process.env.E2E_BASE_URL ?? "http://localhost:3000", "E2E_BASE_URL", ["3000"]);
+assertLocalUrl(process.env.E2E_MAILPIT_URL ?? "http://127.0.0.1:54324", "E2E_MAILPIT_URL", ["54324"]);
+assertLocalUrl(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://127.0.0.1:54321", "NEXT_PUBLIC_SUPABASE_URL", ["54321"]);
 
 /**
  * E2E contra o app local (`pnpm build && pnpm start`) e a stack Supabase local
@@ -9,7 +15,7 @@ export default defineConfig({
   timeout: 60_000,
   retries: 0,
   use: {
-    baseURL: process.env.E2E_BASE_URL ?? "http://localhost:3000",
+    baseURL,
     locale: "pt-BR",
     trace: "off",
   },

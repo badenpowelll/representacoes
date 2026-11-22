@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { beforeAll, describe, expect, it } from "vitest";
+import { isLocalUrl } from "../support/local-url";
 
 /**
  * Integração contra uma stack Supabase LOCAL (`npx supabase start`): Auth real,
@@ -9,7 +10,11 @@ import { beforeAll, describe, expect, it } from "vitest";
 const url = process.env.SUPABASE_TEST_URL;
 const anonKey = process.env.SUPABASE_TEST_ANON_KEY;
 const serviceKey = process.env.SUPABASE_TEST_SERVICE_ROLE_KEY;
-const enabled = Boolean(url && anonKey && serviceKey && /^http:\/\/(127\.0\.0\.1|localhost)/.test(url ?? ""));
+const configured = Boolean(url || anonKey || serviceKey);
+if (configured && !isLocalUrl(url, ["54321"])) {
+  throw new Error("SUPABASE_TEST_URL precisa ser o Supabase local (http://127.0.0.1:54321); recusando criar usuários em outro host.");
+}
+const enabled = Boolean(url && anonKey && serviceKey);
 
 const run = Date.now().toString(36);
 const password = `Senha-forte-${run}-!`;
