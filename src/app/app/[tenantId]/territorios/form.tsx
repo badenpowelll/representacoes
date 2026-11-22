@@ -40,8 +40,8 @@ export function TerritoryForm({
         {state.fieldErrors?.industry_id && <p className="text-sm text-red-600">{state.fieldErrors.industry_id}</p>}
       </div>
       <UfMunicipioFields states={states} defaultUf={v.state_code} defaultMunicipio={v.municipality_id}
-        ufError={state.fieldErrors?.state_code} municipioError={state.fieldErrors?.municipality_id}
-        municipioEmptyLabel="Toda a UF" />
+        defaultScope={v.coverage} explicitScope scopeError={state.fieldErrors?.coverage}
+        ufError={state.fieldErrors?.state_code} municipioError={state.fieldErrors?.municipality_id} />
       <div className="flex flex-col gap-1">
         <label htmlFor="membership_id" className="text-sm font-medium">
           Responsável

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatCnpj, isValidCnpj } from "./cnpj";
-import { companySchema, dealSchema, industrySchema, moveDealSchema, optionalMunicipality, contactSchema, productSchema, prospectSchema } from "./schemas";
+import { companySchema, dealSchema, industrySchema, moveDealSchema, optionalMunicipality, contactSchema, productSchema, prospectSchema, territorySchema } from "./schemas";
 
 describe("CNPJ", () => {
   it("valida dígitos verificadores", () => {
@@ -96,5 +96,28 @@ describe("prospecção manual", () => {
     expect(r.state_code).toBeNull();
     expect(r.municipality_id).toBeNull();
     expect(prospectSchema.parse({ ...base, state_code: "RN", municipality_id: "2408102" }).municipality_id).toBe(2408102);
+  });
+});
+
+describe("territorySchema (abrangência explícita)", () => {
+  const base = { industry_id: "11111111-1111-4111-8111-111111111111", state_code: "RN", membership_id: "" };
+  const err = (input: Record<string, unknown>) => {
+    const r = territorySchema.safeParse(input);
+    return r.success ? null : r.error.issues.map((i) => `${String(i.path[0])}:${i.message}`);
+  };
+  it("exige escolher UF inteira ou município", () => {
+    expect(err(base)?.[0]).toMatch(/^coverage:/);
+  });
+  it("UF inteira não aceita município", () => {
+    expect(territorySchema.parse({ ...base, coverage: "state", municipio_status: "loading" }).municipality_id).toBeNull();
+    expect(err({ ...base, coverage: "state", municipality_id: "2408003" })?.[0]).toMatch(/^municipality_id:/);
+  });
+  it("município exige lista carregada e município escolhido", () => {
+    expect(err({ ...base, coverage: "municipality", municipio_status: "loading", municipality_id: "" })?.[0]).toMatch(/não carregou/);
+    expect(err({ ...base, coverage: "municipality", municipio_status: "failed" })?.[0]).toMatch(/não carregou/);
+    expect(err({ ...base, coverage: "municipality" })?.[0]).toMatch(/não carregou/);
+    expect(err({ ...base, coverage: "municipality", municipio_status: "ready", municipality_id: "" })?.[0]).toMatch(/Selecione o município/);
+    const ok = territorySchema.parse({ ...base, coverage: "municipality", municipio_status: "ready", municipality_id: "2408003" });
+    expect(ok).toEqual({ industry_id: base.industry_id, state_code: "RN", municipality_id: 2408003, membership_id: null, exclusive: false });
   });
 });

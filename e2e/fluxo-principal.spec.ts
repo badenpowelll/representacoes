@@ -236,18 +236,41 @@ test("contexto comercial e territórios", async ({ browser }) => {
   await page.getByRole("link", { name: "Territórios" }).click();
   await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Tintas Delta" });
   await page.getByLabel("UF", { exact: true }).selectOption("RN");
+  await page.getByLabel("UF inteira").check();
   await page.getByRole("button", { name: "Adicionar cobertura" }).click();
   await expect(page.getByText("Cobertura adicionada.")).toBeVisible();
   await expect(page.getByRole("cell", { name: "RN", exact: true })).toBeVisible();
   await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Tintas Delta" });
   await page.getByLabel("UF", { exact: true }).selectOption("RN");
+  await page.getByLabel("UF inteira").check();
   await page.getByRole("button", { name: "Adicionar cobertura" }).click();
   await expect(page.getByText("Esta cobertura já está cadastrada.")).toBeVisible();
 
-  // Cobertura por município (referência do IBGE)
+  // Sem escolher a abrangência, o servidor recusa (não vira cobertura estadual por omissão).
+  await page.reload();
   await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Tintas Delta" });
   await page.getByLabel("UF", { exact: true }).selectOption("RN");
-  await page.getByLabel("Município").selectOption({ label: "Mossoró" });
+  await page.getByRole("button", { name: "Adicionar cobertura" }).click();
+  await expect(page.getByText("Escolha UF inteira ou um município")).toBeVisible();
+
+  // Lista de municípios indisponível: cobertura municipal é recusada.
+  await page.route("**/rest/v1/ref_municipalities*", (r) =>
+    r.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ code: "XX000", message: "indisponível" }) }));
+  await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Tintas Delta" });
+  await page.getByLabel("UF", { exact: true }).selectOption("CE");
+  await page.getByLabel("Um município").check();
+  await expect(page.getByText("Não foi possível carregar os municípios.")).toBeVisible();
+  await page.getByRole("button", { name: "Adicionar cobertura" }).click();
+  await expect(page.getByText("A lista de municípios não carregou.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "CE", exact: true })).toHaveCount(0);
+  await page.unroute("**/rest/v1/ref_municipalities*");
+
+  // Cobertura por município (referência do IBGE), com troca rápida de UF.
+  await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Tintas Delta" });
+  await page.getByLabel("UF", { exact: true }).selectOption("CE");
+  await page.getByLabel("Um município").check();
+  await page.getByLabel("UF", { exact: true }).selectOption("RN");
+  await page.getByLabel("Município", { exact: true }).selectOption({ label: "Mossoró" });
   await page.getByRole("button", { name: "Adicionar cobertura" }).click();
   await expect(page.getByText("Cobertura adicionada.")).toBeVisible();
   await expect(page.getByRole("cell", { name: "Mossoró" })).toBeVisible();
@@ -271,6 +294,7 @@ test("compatibilidade: calcula score explicável e aprovação gera lead", async
   await page.getByRole("link", { name: "Territórios" }).click();
   await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Cerâmica Epsilon" });
   await page.getByLabel("UF", { exact: true }).selectOption("RN");
+  await page.getByLabel("UF inteira").check();
   await page.getByRole("button", { name: "Adicionar cobertura" }).click();
   await expect(page.getByText("Cobertura adicionada.")).toBeVisible();
 

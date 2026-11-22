@@ -50,6 +50,49 @@ export const optionalMunicipality = z
   .refine((v) => v == null || /^\d{7}$/.test(v), { message: "Município inválido" })
   .transform((v) => (v == null ? null : Number(v)));
 
+/**
+ * Cobertura territorial (parecer 004-complemento, P1-1): a abrangência é
+ * escolhida de forma explícita. "UF inteira" não aceita município; "Um
+ * município" exige município e que a lista da UF tenha sido carregada.
+ */
+export const territorySchema = z
+  .object({
+    industry_id: z.uuid("Selecione a indústria"),
+    state_code: z.enum(UF_CODES, { message: "Selecione a UF" }),
+    coverage: z.enum(["state", "municipality"], { message: "Escolha UF inteira ou um município" }),
+    municipio_status: z.string().nullish(),
+    municipality_id: optionalMunicipality,
+    membership_id: z
+      .string()
+      .nullish()
+      .transform((v) => v || null)
+      .pipe(z.uuid().nullable()),
+    exclusive: z.string().nullish().transform((v) => v === "on"),
+  })
+  .superRefine((v, ctx) => {
+    if (v.coverage === "state" && v.municipality_id != null) {
+      ctx.addIssue({ code: "custom", path: ["municipality_id"], message: "Cobertura da UF inteira não leva município." });
+    }
+    if (v.coverage === "municipality") {
+      if (v.municipio_status !== "ready") {
+        ctx.addIssue({
+          code: "custom",
+          path: ["municipality_id"],
+          message: "A lista de municípios não carregou. Tente de novo antes de salvar.",
+        });
+      } else if (v.municipality_id == null) {
+        ctx.addIssue({ code: "custom", path: ["municipality_id"], message: "Selecione o município." });
+      }
+    }
+  })
+  .transform((v) => ({
+    industry_id: v.industry_id,
+    state_code: v.state_code,
+    municipality_id: v.municipality_id,
+    membership_id: v.membership_id,
+    exclusive: v.exclusive,
+  }));
+
 export const companySchema = z.object({
   legal_name: z.string().trim().min(2, "Informe a razão social").max(300),
   cnpj: optionalCnpj,
