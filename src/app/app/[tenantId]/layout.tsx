@@ -34,7 +34,7 @@ export default async function TenantLayout({
             Rep360
           </Link>
           <span className="text-sm text-neutral-500">
-            {tenant?.name} · {ROLE_LABELS[ctx.role]}
+            {tenant?.name} · {ROLE_LABELS[ctx.membershipRole]}
           </span>
           <nav aria-label="Principal" className="flex flex-wrap gap-4 text-sm">
             {links.map((l) => (
@@ -45,6 +45,16 @@ export default async function TenantLayout({
           </nav>
         </div>
       </header>
+      {ctx.mfaPending && (
+        <div role="status" className="border-b bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+          <p className="mx-auto max-w-6xl px-4 py-2 text-sm">
+            Você está com acesso somente de leitura. Administradores precisam da verificação em duas etapas.{" "}
+            <Link href={`/app/seguranca?next=${encodeURIComponent(base)}`} className="font-medium underline">
+              Ativar ou confirmar agora
+            </Link>
+          </p>
+        </div>
+      )}
       <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
     </div>
   );

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { totp } from "../tests/support/totp";
 
 const MAILPIT = process.env.E2E_MAILPIT_URL ?? "http://127.0.0.1:54324";
 const run = Date.now().toString(36);
@@ -28,6 +29,41 @@ async function signUpAndConfirm(page: Page, name: string, email: string, passwor
   await expect(page).toHaveURL(/\/app\/nova-representacao/);
 }
 
+/** Digita o TOTP atual; se o servidor recusar (código da janela já usado), espera a próxima janela. */
+async function submitTotp(page: Page, secret: string) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await page.getByLabel("Código de 6 dígitos").fill(totp(secret));
+    await page.getByRole("button", { name: "Verificar" }).click();
+    const outcome = await Promise.race([
+      page.waitForURL((u) => !u.pathname.startsWith("/app/seguranca"), { timeout: 10_000 }).then(() => "ok"),
+      page.getByText("Código inválido ou expirado").waitFor({ timeout: 10_000 }).then(() => "retry"),
+    ]);
+    if (outcome === "ok") return;
+    await page.waitForTimeout(31_000 - (Date.now() % 30_000));
+  }
+  throw new Error("TOTP recusado duas vezes");
+}
+
+/** Cadastra o autenticador na tela de segurança e retorna o segredo (conta sintética de teste). */
+async function enrollTotp(page: Page): Promise<string> {
+  await expect(page.getByRole("heading", { name: "Verificação em duas etapas" })).toBeVisible();
+  await page.getByRole("button", { name: "Configurar aplicativo autenticador" }).click();
+  const secret = (await page.getByTestId("totp-secret").textContent())!.trim();
+  await submitTotp(page, secret);
+  return secret;
+}
+
+/** Onboarding de administrador: cria a representação e ativa o MFA. */
+async function createTenant(page: Page, name: string, slug: string): Promise<string> {
+  await page.getByLabel("Nome da representação").fill(name);
+  await page.getByLabel("Identificador").fill(slug);
+  await page.getByRole("button", { name: "Criar representação" }).click();
+  await expect(page).toHaveURL(/\/app\/seguranca\?novo=1/);
+  const secret = await enrollTotp(page);
+  await expect(page.getByRole("heading", { name: "Painel" })).toBeVisible();
+  return secret;
+}
+
 test("cadastro, onboarding, CRM, funil e isolamento entre representações", async ({ browser }) => {
   const password = `Senha-forte-${run}`;
   const ctxA = await browser.newContext();
@@ -35,12 +71,21 @@ test("cadastro, onboarding, CRM, funil e isolamento entre representações", asy
 
   await signUpAndConfirm(a, "Ana Alfa", `ana-${run}@alfa.test`, password);
 
-  // Onboarding
+  // Onboarding: sem MFA o administrador fica só com leitura
   await a.getByLabel("Nome da representação").fill("Alfa Representações");
   await a.getByLabel("Identificador").fill(`alfa-${run}`);
   await a.getByRole("button", { name: "Criar representação" }).click();
+  await expect(a).toHaveURL(/\/app\/seguranca\?novo=1/);
+  await a.getByRole("link", { name: "Agora não (somente leitura)" }).click();
   await expect(a.getByRole("heading", { name: "Painel" })).toBeVisible();
   const tenantUrl = a.url();
+  await expect(a.getByText("Você está com acesso somente de leitura")).toBeVisible();
+  await a.getByRole("link", { name: "Indústrias" }).click();
+  await expect(a.getByRole("button", { name: "Cadastrar indústria" })).toHaveCount(0);
+  await a.getByRole("link", { name: "Ativar ou confirmar agora" }).click();
+  const secretA = await enrollTotp(a);
+  await expect(a).toHaveURL(tenantUrl);
+  await expect(a.getByText("Você está com acesso somente de leitura")).toHaveCount(0);
 
   // Indústria com CNPJ inválido → erro; válido → listado
   await a.getByRole("link", { name: "Indústrias" }).click();
@@ -90,6 +135,15 @@ test("cadastro, onboarding, CRM, funil e isolamento entre representações", asy
   await expect(a).toHaveURL(/\/entrar/);
   await a.goto(tenantUrl);
   await expect(a).toHaveURL(/\/entrar/);
+
+  // Novo login de administrador passa pelo desafio TOTP
+  await a.getByLabel("E-mail").fill(`ana-${run}@alfa.test`);
+  await a.getByLabel("Senha").fill(password);
+  await a.getByRole("button", { name: "Entrar" }).click();
+  await expect(a).toHaveURL(/\/app\/seguranca/);
+  await submitTotp(a, secretA);
+  await a.goto(`${tenantUrl}/industrias`);
+  await expect(a.getByRole("button", { name: "Cadastrar indústria" })).toBeVisible();
 });
 
 test("login com senha errada mostra erro genérico", async ({ page }) => {
@@ -104,10 +158,7 @@ test("convite: admin gera link, convidado se cadastra e entra com o papel defini
   const password = `Senha-forte-${run}`;
   const admin = await (await browser.newContext()).newPage();
   await signUpAndConfirm(admin, "Carla Admin", `carla-${run}@gama.test`, password);
-  await admin.getByLabel("Nome da representação").fill("Gama Representações");
-  await admin.getByLabel("Identificador").fill(`gama-${run}`);
-  await admin.getByRole("button", { name: "Criar representação" }).click();
-  await expect(admin.getByRole("heading", { name: "Painel" })).toBeVisible();
+  await createTenant(admin, "Gama Representações", `gama-${run}`);
   const tenantUrl = admin.url();
 
   await admin.getByRole("link", { name: "Equipe" }).click();
@@ -147,10 +198,7 @@ test("convite: admin gera link, convidado se cadastra e entra com o papel defini
 test("contexto comercial e territórios", async ({ browser }) => {
   const page = await (await browser.newContext()).newPage();
   await signUpAndConfirm(page, "Edu Admin", `edu-${run}@delta.test`, `Senha-forte-${run}`);
-  await page.getByLabel("Nome da representação").fill("Delta Representações");
-  await page.getByLabel("Identificador").fill(`delta-${run}`);
-  await page.getByRole("button", { name: "Criar representação" }).click();
-  await expect(page.getByRole("heading", { name: "Painel" })).toBeVisible();
+  await createTenant(page, "Delta Representações", `delta-${run}`);
 
   await page.getByRole("link", { name: "Contexto" }).click();
   await page.getByLabel("CNAEs-alvo").fill("4744-0/01, 123");
@@ -184,10 +232,7 @@ test("contexto comercial e territórios", async ({ browser }) => {
 test("compatibilidade: calcula score explicável e aprovação gera lead", async ({ browser }) => {
   const page = await (await browser.newContext()).newPage();
   await signUpAndConfirm(page, "Fábio Admin", `fabio-${run}@epsilon.test`, `Senha-forte-${run}`);
-  await page.getByLabel("Nome da representação").fill("Epsilon Representações");
-  await page.getByLabel("Identificador").fill(`epsilon-${run}`);
-  await page.getByRole("button", { name: "Criar representação" }).click();
-  await expect(page.getByRole("heading", { name: "Painel" })).toBeVisible();
+  await createTenant(page, "Epsilon Representações", `epsilon-${run}`);
 
   await page.getByRole("link", { name: "Contexto" }).click();
   await page.getByLabel("CNAEs-alvo").fill("4744001");
@@ -235,10 +280,7 @@ test("compatibilidade: calcula score explicável e aprovação gera lead", async
 test("catálogos: envia PDF privado, rejeita arquivo que não é PDF", async ({ browser }) => {
   const page = await (await browser.newContext()).newPage();
   await signUpAndConfirm(page, "Gil Admin", `gil-${run}@zeta.test`, `Senha-forte-${run}`);
-  await page.getByLabel("Nome da representação").fill("Zeta Representações");
-  await page.getByLabel("Identificador").fill(`zeta-${run}`);
-  await page.getByRole("button", { name: "Criar representação" }).click();
-  await expect(page.getByRole("heading", { name: "Painel" })).toBeVisible();
+  await createTenant(page, "Zeta Representações", `zeta-${run}`);
   await page.getByRole("link", { name: "Indústrias" }).click();
   await page.getByLabel("Nome").fill("Metais Zeta");
   await page.getByRole("button", { name: "Cadastrar indústria" }).click();

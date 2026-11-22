@@ -79,3 +79,16 @@ as $$
   select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1];
 $$;
 grant execute on function storage.foldername(text) to anon, authenticated, service_role;
+
+-- Claims completas do JWT da requisição (inclui "aal" para MFA).
+create or replace function auth.jwt()
+returns jsonb
+language sql
+stable
+as $$
+  select coalesce(
+    nullif(current_setting('request.jwt.claim', true), ''),
+    nullif(current_setting('request.jwt.claims', true), '')
+  )::jsonb;
+$$;
+grant execute on function auth.jwt() to anon, authenticated, service_role;

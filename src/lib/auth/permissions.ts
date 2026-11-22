@@ -57,3 +57,14 @@ export function assignableRoles(role: TenantRole): TenantRole[] {
   if (role === "manager") return TENANT_ROLES.filter((r) => r !== "tenant_admin");
   return [];
 }
+
+/** Nível de garantia da sessão do Supabase Auth. */
+export type AssuranceLevel = "aal1" | "aal2";
+
+/**
+ * Papel efetivo da sessão. Espelha app.has_role no banco: administrador sem
+ * MFA verificado na sessão (AAL1) atua como "leitura" até concluir o segundo fator.
+ */
+export function effectiveRole(role: TenantRole, aal: string | null | undefined): TenantRole {
+  return role === "tenant_admin" && aal !== "aal2" ? "viewer" : role;
+}

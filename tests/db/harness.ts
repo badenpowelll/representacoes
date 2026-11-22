@@ -48,21 +48,32 @@ export async function createUser(pool: Pool, email: string, opts: { confirmed?: 
   return rows[0].id;
 }
 
+export type SessionOptions = {
+  /**
+   * Nível de garantia da sessão. O padrão "aal2" simula um usuário que já passou
+   * pelo MFA, para que as suítes testem papéis; os testes de MFA usam "aal1".
+   */
+  aal?: "aal1" | "aal2";
+};
+
 /**
  * Executa `fn` como um usuário autenticado (papel `authenticated` + claims do JWT),
- * exatamente como o PostgREST faz no Supabase. A transação sofre rollback no fim.
+ * exatamente como o PostgREST faz no Supabase.
  */
 export async function asUser<T>(
   pool: Pool,
   userId: string | null,
   fn: (db: PoolClient) => Promise<T>,
+  opts: SessionOptions = {},
 ): Promise<T> {
   const client = await pool.connect();
   try {
     await client.query("begin");
     await client.query(`set local role ${userId ? "authenticated" : "anon"}`);
     await client.query("select set_config('request.jwt.claims', $1, true)", [
-      JSON.stringify(userId ? { sub: userId, role: "authenticated" } : { role: "anon" }),
+      JSON.stringify(
+        userId ? { sub: userId, role: "authenticated", aal: opts.aal ?? "aal2" } : { role: "anon" },
+      ),
     ]);
     const result = await fn(client);
     await client.query("commit");
@@ -80,9 +91,10 @@ export async function tryAsUser(
   pool: Pool,
   userId: string | null,
   fn: (db: PoolClient) => Promise<unknown>,
+  opts: SessionOptions = {},
 ): Promise<{ ok: true } | { ok: false; code?: string; message: string }> {
   try {
-    await asUser(pool, userId, fn);
+    await asUser(pool, userId, fn, opts);
     return { ok: true };
   } catch (error) {
     const e = error as { code?: string; message: string };

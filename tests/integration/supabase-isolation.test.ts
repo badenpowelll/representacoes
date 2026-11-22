@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { beforeAll, describe, expect, it } from "vitest";
 import { isLocalUrl } from "../support/local-url";
+import { totp } from "../support/totp";
 
 /**
  * Integração contra uma stack Supabase LOCAL (`npx supabase start`): Auth real,
@@ -19,18 +20,32 @@ const enabled = Boolean(url && anonKey && serviceKey);
 const run = Date.now().toString(36);
 const password = `Senha-forte-${run}-!`;
 
+async function signIn(email: string) {
+  const client = createClient(url!, anonKey!, { auth: { persistSession: false } });
+  const { error } = await client.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+  return client;
+}
+
 async function signedInClient(admin: SupabaseClient, email: string) {
   const { error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
   if (error) throw error;
-  const client = createClient(url!, anonKey!, { auth: { persistSession: false } });
-  const { error: e2 } = await client.auth.signInWithPassword({ email, password });
-  if (e2) throw e2;
-  return client;
+  return signIn(email);
+}
+
+/** Cadastra e verifica um fator TOTP; a sessão do cliente passa a AAL2. Retorna o segredo. */
+async function enrollTotp(client: SupabaseClient): Promise<{ factorId: string; secret: string }> {
+  const { data, error } = await client.auth.mfa.enroll({ factorType: "totp" });
+  if (error) throw error;
+  const v = await client.auth.mfa.challengeAndVerify({ factorId: data.id, code: totp(data.totp.secret) });
+  if (v.error) throw v.error;
+  return { factorId: data.id, secret: data.totp.secret };
 }
 
 describe.skipIf(!enabled)("isolamento via API real do Supabase local", () => {
   let a: SupabaseClient, b: SupabaseClient, anon: SupabaseClient;
   let tenantA: string, tenantB: string;
+  let factorA: { factorId: string; secret: string };
 
   beforeAll(async () => {
     const admin = createClient(url!, serviceKey!, { auth: { persistSession: false } });
@@ -42,7 +57,35 @@ describe.skipIf(!enabled)("isolamento via API real do Supabase local", () => {
     if (ra.error || rb.error) throw ra.error ?? rb.error;
     tenantA = ra.data as string;
     tenantB = rb.data as string;
+    // Administradores só escrevem com MFA (AAL2).
+    factorA = await enrollTotp(a);
+    await enrollTotp(b);
   });
+
+  it("MFA: administrador com sessão AAL1 lê mas não escreve pela API; após o TOTP escreve", async () => {
+    const fresh = await signIn(`a-${run}@alfa.test`);
+    const aal = await fresh.auth.mfa.getAuthenticatorAssuranceLevel();
+    expect(aal.data).toMatchObject({ currentLevel: "aal1", nextLevel: "aal2" });
+
+    const read = await fresh.from("tenants").select("id");
+    expect(read.data?.map((t) => t.id)).toEqual([tenantA]);
+    const denied = await fresh.from("industries").insert({ tenant_id: tenantA, name: `AAL1 ${run}` });
+    expect(denied.error?.code).toBe("42501");
+    const invite = await fresh.rpc("create_invitation", { p_tenant: tenantA, p_email: `x-${run}@alfa.test`, p_role: "viewer" });
+    expect(invite.error?.code).toBe("42501");
+
+    // Aguarda a próxima janela de 30 s se o código atual já foi usado no cadastro.
+    let code = totp(factorA.secret);
+    let v = await fresh.auth.mfa.challengeAndVerify({ factorId: factorA.factorId, code });
+    if (v.error) {
+      await new Promise((r) => setTimeout(r, 31_000 - (Date.now() % 30_000)));
+      code = totp(factorA.secret);
+      v = await fresh.auth.mfa.challengeAndVerify({ factorId: factorA.factorId, code });
+    }
+    expect(v.error).toBeNull();
+    const ok = await fresh.from("industries").insert({ tenant_id: tenantA, name: `AAL2 ${run}` });
+    expect(ok.error).toBeNull();
+  }, 70_000);
 
   it("cada usuário lista só o próprio tenant pela API", async () => {
     const { data } = await a.from("tenants").select("id");

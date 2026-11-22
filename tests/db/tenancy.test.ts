@@ -279,14 +279,14 @@ describe("concorrência", () => {
     const begin = async (c: typeof c1, uid: string) => {
       await c.query("begin");
       await c.query("set local role authenticated");
-      await c.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: uid })]);
+      await c.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: uid, aal: "aal2" })]);
     };
     try {
       await begin(c1, admin1);
       await begin(c2, admin2);
       // cada admin rebaixa a si mesmo; ambos enxergam o outro ainda ativo
-      await c1.query("update public.memberships set role = 'viewer' where user_id = $1 and tenant_id = $2", [admin1, gama]);
-      await c2.query("update public.memberships set role = 'viewer' where user_id = $1 and tenant_id = $2", [admin2, gama]);
+      expect((await c1.query("update public.memberships set role = 'viewer' where user_id = $1 and tenant_id = $2", [admin1, gama])).rowCount).toBe(1);
+      expect((await c2.query("update public.memberships set role = 'viewer' where user_id = $1 and tenant_id = $2", [admin2, gama])).rowCount).toBe(1);
       const results = await Promise.allSettled([c1.query("commit"), c2.query("commit")]);
       const failed = results.filter((r) => r.status === "rejected");
       expect(failed).toHaveLength(1);

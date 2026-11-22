@@ -5,6 +5,7 @@ import { z } from "zod";
 import { type ActionState, withValues, zodFieldErrors } from "@/lib/action-state";
 import { formToObject } from "@/lib/validation/schemas";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { safeNext } from "@/lib/safe-next";
 
 const email = z.email("Informe um e-mail válido").trim().toLowerCase();
 const password = z.string().min(10, "A senha precisa ter pelo menos 10 caracteres").max(72);
@@ -14,10 +15,6 @@ async function origin() {
   return process.env.APP_URL ?? `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host")}`;
 }
 
-/** Apenas caminhos internos, para evitar open redirect. */
-function safeNext(value: unknown): string {
-  return typeof value === "string" && value.startsWith("/") && !value.startsWith("//") ? value : "/app";
-}
 
 export async function signIn(_: ActionState, form: FormData): Promise<ActionState> {
   const parsed = z.object({ email, password: z.string().min(1, "Informe a senha") }).safeParse(formToObject(form));
@@ -35,7 +32,13 @@ export async function signIn(_: ActionState, form: FormData): Promise<ActionStat
       form,
     );
   }
-  redirect(safeNext(form.get("next")));
+  const next = safeNext(form.get("next"));
+  // Quem já cadastrou segundo fator passa pelo desafio TOTP logo após a senha.
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2") {
+    redirect(`/app/seguranca?next=${encodeURIComponent(next)}`);
+  }
+  redirect(next);
 }
 
 export async function signUp(_: ActionState, form: FormData): Promise<ActionState> {

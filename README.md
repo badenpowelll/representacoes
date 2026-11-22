@@ -63,7 +63,7 @@ docs/               arquitetura, ADRs e backlog
 ## Limitações atuais
 
 - Telas ainda não implementadas: produtos, contatos das empresas, publicação/versões de catálogos e extração de PDF, prospecção. O banco e as políticas desses módulos já existem e estão testados.
-- MFA obrigatório para administradores ainda não é exigido na interface (TOTP habilitado no `config.toml`).
+- MFA: administradores só têm privilégios com sessão AAL2 (TOTP). Ainda não há códigos de recuperação próprios; a recuperação é feita pelo suporte da plataforma (ADR 0004).
 - Municípios do IBGE ainda não carregados (apenas as 27 UFs).
 - Gmail, campanhas e agente de IA são Fases 2 e 3.
 - Validação contra um projeto Supabase real depende da criação de staging (decisão do proprietário).

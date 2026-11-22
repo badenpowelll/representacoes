@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assignableRoles, can, isTenantRole } from "./permissions";
+import { assignableRoles, can, effectiveRole, isTenantRole } from "./permissions";
 
 describe("permissões", () => {
   it("leitura só lê", () => {
@@ -25,5 +25,17 @@ describe("permissões", () => {
   it("valida papéis desconhecidos", () => {
     expect(isTenantRole("tenant_admin")).toBe(true);
     expect(isTenantRole("platform_admin")).toBe(false);
+  });
+});
+
+describe("effectiveRole (MFA)", () => {
+  it("administrador sem AAL2 atua como leitura", () => {
+    expect(effectiveRole("tenant_admin", "aal1")).toBe("viewer");
+    expect(effectiveRole("tenant_admin", undefined)).toBe("viewer");
+    expect(effectiveRole("tenant_admin", "aal2")).toBe("tenant_admin");
+  });
+  it("demais papéis não dependem do nível da sessão", () => {
+    expect(effectiveRole("manager", "aal1")).toBe("manager");
+    expect(effectiveRole("viewer", "aal2")).toBe("viewer");
   });
 });

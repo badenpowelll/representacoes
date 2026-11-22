@@ -15,5 +15,6 @@ export async function createTenant(_: ActionState, form: FormData): Promise<Acti
       form,
     );
   }
-  redirect(`/app/${data}`);
+  // Onboarding: o administrador cadastra o segundo fator antes de gerenciar a representação.
+  redirect(`/app/seguranca?novo=1&next=${encodeURIComponent(`/app/${data}`)}`);
 }
