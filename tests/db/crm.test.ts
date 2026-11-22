@@ -81,7 +81,7 @@ describe("contatos", () => {
   it("opt-out do contato entra na lista de supressão do próprio tenant", async () => {
     await asUser(pool, alfaRep, async (db) => {
       const cid = await id(
-        db.query("insert into public.contacts (tenant_id, company_id, name, email) values ($1, $2, 'Maria', 'Maria@Cliente.test') returning id", [
+        db.query("insert into public.contacts (tenant_id, company_id, name, email, legal_basis, purposes, legal_basis_note, source) values ($1, $2, 'Maria', 'Maria@Cliente.test', 'legitimate_interest', '{prospecting}', 'Interesse comercial B2B no segmento atendido', 'cadastro manual') returning id", [
           alfa,
           alfaCompany,
         ]),

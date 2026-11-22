@@ -105,21 +105,44 @@ test("cadastro, onboarding, CRM, funil e isolamento entre representações", asy
   await a.getByRole("button", { name: "Cadastrar empresa" }).click();
   await expect(a.getByRole("cell", { name: "Loja de Materiais Natal" })).toBeVisible();
 
-  // Contatos (LGPD): consentimento exige confirmação; oposição bloqueia comunicação
+  // Contatos (LGPD): sem base legal padrão; finalidade e evidência exigidas;
+  // oposição e exclusão com retorno explícito; recadastro continua bloqueado.
   await a.getByRole("link", { name: "Loja de Materiais Natal" }).click();
+  await expect(a.getByLabel("Base legal (LGPD)")).toHaveValue("");
   await a.getByLabel("Nome do contato").fill("Rita Compras");
   await a.getByLabel("E-mail").fill(`rita-${run}@loja.test`);
-  await a.getByLabel("Base legal (LGPD)").selectOption("consent");
   await a.getByLabel("Origem do contato").fill("cartão de visita");
   await a.getByRole("button", { name: "Adicionar contato" }).click();
+  await expect(a.getByText("Selecione a base legal")).toBeVisible();
+  await a.getByLabel("Base legal (LGPD)").selectOption("consent");
+  await a.getByRole("button", { name: "Adicionar contato" }).click();
+  await expect(a.getByText("Escolha ao menos uma finalidade")).toBeVisible();
   await expect(a.getByText("Confirme que o contato deu consentimento")).toBeVisible();
+  await expect(a.getByText("Descreva como o consentimento foi obtido")).toBeVisible();
+  await a.getByLabel("Prospecção comercial").check();
   await a.getByLabel(/deu consentimento/).check();
+  await a.getByLabel("Evidência do consentimento").fill("formulário assinado na feira de Natal");
   await a.getByRole("button", { name: "Adicionar contato" }).click();
   await expect(a.getByText("Contato cadastrado.")).toBeVisible();
   const rita = a.getByRole("listitem").filter({ hasText: "Rita Compras" });
   await expect(rita).toContainText("consentimento em");
+  await expect(rita).toContainText("Pode receber prospecção por e-mail");
   await rita.getByRole("button", { name: "Registrar oposição (não contatar)" }).click();
-  await expect(rita).toContainText("Comunicação bloqueada");
+  await expect(rita).toContainText("Oposição registrada.");
+  await expect(rita).toContainText("Comunicação bloqueada: oposição registrada");
+  await rita.getByRole("button", { name: "Excluir dados de Rita Compras" }).click();
+  await expect(a.getByRole("listitem").filter({ hasText: "Rita Compras" })).toHaveCount(0);
+  // Recadastro do mesmo e-mail (legítimo interesse com justificativa) continua bloqueado.
+  await a.getByLabel("Nome do contato").fill("Rita Recadastrada");
+  await a.getByLabel("E-mail").fill(`RITA-${run}@loja.test`);
+  await a.getByLabel("Origem do contato").fill("site da empresa");
+  await a.getByLabel("Base legal (LGPD)").selectOption("legitimate_interest");
+  await a.getByLabel("Prospecção comercial").check();
+  await a.getByLabel("Justificativa da base legal").fill("Compradora de materiais de construção, segmento atendido");
+  await a.getByRole("button", { name: "Adicionar contato" }).click();
+  await expect(a.getByText("Contato cadastrado.")).toBeVisible();
+  await expect(a.getByRole("listitem").filter({ hasText: "Rita Recadastrada" }))
+    .toContainText("Comunicação bloqueada: e-mail ou domínio na lista de supressão");
 
   // Funil: criar, mover, perda sem motivo bloqueada
   await a.getByRole("link", { name: "Funil" }).click();

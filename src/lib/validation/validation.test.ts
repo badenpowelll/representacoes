@@ -51,16 +51,27 @@ describe("município opcional", () => {
 });
 
 describe("contato (LGPD)", () => {
-  const base = { company_id: "6f1c1e0a-3b7a-4c55-9d43-6f0b8f2d9a11", name: "Ana", source: "feira", legal_basis: "legitimate_interest" };
-  it("exige origem e base legal", () => {
+  const base = {
+    company_id: "6f1c1e0a-3b7a-4c55-9d43-6f0b8f2d9a11", name: "Ana", source: "feira", legal_basis: "legitimate_interest",
+    legal_basis_note: "Compradora de material de construção, segmento atendido", purpose_prospecting: "on",
+  };
+  it("exige origem, base legal (sem padrão) e finalidade", () => {
     expect(contactSchema.safeParse({ ...base, source: "" }).success).toBe(false);
     expect(contactSchema.safeParse({ ...base, legal_basis: "" }).success).toBe(false);
-    expect(contactSchema.parse(base).consent).toBe(false);
+    expect(contactSchema.safeParse({ ...base, legal_basis: undefined }).success).toBe(false);
+    expect(contactSchema.safeParse({ ...base, purpose_prospecting: undefined }).success).toBe(false);
+    const ok = contactSchema.parse({ ...base, purpose_support: "on" });
+    expect(ok.purposes).toEqual(["prospecting", "support"]);
+    expect(ok).not.toHaveProperty("purpose_prospecting");
   });
-  it("base consentimento exige a confirmação", () => {
-    const r = contactSchema.safeParse({ ...base, legal_basis: "consent" });
-    expect(r.success).toBe(false);
-    expect(contactSchema.parse({ ...base, legal_basis: "consent", consent: "on" }).consent).toBe(true);
+  it("legítimo interesse exige justificativa", () => {
+    expect(contactSchema.safeParse({ ...base, legal_basis_note: "B2B" }).success).toBe(false);
+  });
+  it("consentimento exige confirmação e evidência", () => {
+    const c = { ...base, legal_basis: "consent", legal_basis_note: "" };
+    expect(contactSchema.safeParse(c).success).toBe(false);
+    expect(contactSchema.safeParse({ ...c, consent: "on" }).success).toBe(false);
+    expect(contactSchema.parse({ ...c, consent: "on", consent_evidence: "formulário assinado na feira" }).consent).toBe(true);
   });
   it("valida e-mail e telefone", () => {
     expect(contactSchema.safeParse({ ...base, email: "x@" }).success).toBe(false);

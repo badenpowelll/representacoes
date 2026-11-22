@@ -154,7 +154,33 @@ export const LEGAL_BASIS_LABELS: Record<(typeof LEGAL_BASES)[number], string> = 
   legal_obligation: "Obrigação legal",
 };
 
-/** Contato de empresa (LGPD: origem e base legal obrigatórias; consentimento quando for a base). */
+export const CONTACT_PURPOSES = ["prospecting", "customer_relationship", "catalog_distribution", "support"] as const;
+export type ContactPurpose = (typeof CONTACT_PURPOSES)[number];
+export const CONTACT_PURPOSE_LABELS: Record<ContactPurpose, string> = {
+  prospecting: "Prospecção comercial",
+  customer_relationship: "Relacionamento com cliente",
+  catalog_distribution: "Divulgação de catálogos",
+  support: "Atendimento e pós-venda",
+};
+
+/** Motivos de inelegibilidade devolvidos por public.contact_eligibility. */
+export const ELIGIBILITY_REASON_LABELS: Record<string, string> = {
+  opted_out: "oposição registrada",
+  no_email: "sem e-mail",
+  suppressed: "e-mail ou domínio na lista de supressão",
+  no_legal_basis: "sem base legal",
+  purpose_not_allowed: "finalidade não autorizada",
+  consent_missing: "consentimento sem evidência",
+  channel_not_supported: "canal não suportado",
+  unknown: "elegibilidade indeterminada",
+};
+
+/**
+ * Contato de empresa (LGPD, parecer 004-complemento P1-4): sem base legal
+ * padrão; finalidade e origem obrigatórias; legítimo interesse exige
+ * justificativa; consentimento exige confirmação e evidência. O banco
+ * (trigger contacts_lawful_basis) aplica as mesmas regras.
+ */
 export const contactSchema = z
   .object({
     company_id: z.uuid("Empresa inválida"),
@@ -163,12 +189,36 @@ export const contactSchema = z
     email: optionalText(254).refine((v) => v == null || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v), { message: "E-mail inválido" }),
     phone: optionalText(40).refine((v) => v == null || /^[0-9()+\-\s]{8,40}$/.test(v), { message: "Telefone inválido" }),
     legal_basis: z.enum(LEGAL_BASES, { message: "Selecione a base legal" }),
-    consent: z.string().optional().transform((v) => v === "on"),
+    legal_basis_note: optionalText(2000),
+    consent: z.string().nullish().transform((v) => v === "on"),
+    consent_evidence: optionalText(1000),
     source: z.string().trim().min(2, "Informe a origem do dado (LGPD)").max(300),
+    ...Object.fromEntries(CONTACT_PURPOSES.map((p) => [`purpose_${p}`, z.string().nullish()])),
   })
-  .refine((c) => c.legal_basis !== "consent" || c.consent, {
-    path: ["consent"],
-    message: "Confirme que o contato deu consentimento",
+  .transform(({ ...v }) => {
+    const raw = v as Record<string, unknown>;
+    const purposes = CONTACT_PURPOSES.filter((p) => raw[`purpose_${p}`] === "on");
+    for (const p of CONTACT_PURPOSES) delete raw[`purpose_${p}`];
+    return { ...(raw as {
+      company_id: string; name: string; role_title: string | null; email: string | null; phone: string | null;
+      legal_basis: (typeof LEGAL_BASES)[number]; legal_basis_note: string | null; consent: boolean;
+      consent_evidence: string | null; source: string;
+    }), purposes };
+  })
+  .superRefine((c, ctx) => {
+    if (c.purposes.length === 0) ctx.addIssue({ code: "custom", path: ["purposes"], message: "Escolha ao menos uma finalidade" });
+    if (c.legal_basis === "legitimate_interest" && (c.legal_basis_note?.length ?? 0) < 20) {
+      ctx.addIssue({ code: "custom", path: ["legal_basis_note"], message: "Explique o legítimo interesse (mín. 20 caracteres)" });
+    }
+    if ((c.legal_basis === "contract" || c.legal_basis === "legal_obligation") && (c.legal_basis_note?.length ?? 0) < 5) {
+      ctx.addIssue({ code: "custom", path: ["legal_basis_note"], message: "Informe a referência do contrato ou da obrigação" });
+    }
+    if (c.legal_basis === "consent") {
+      if (!c.consent) ctx.addIssue({ code: "custom", path: ["consent"], message: "Confirme que o contato deu consentimento" });
+      if ((c.consent_evidence?.length ?? 0) < 5) {
+        ctx.addIssue({ code: "custom", path: ["consent_evidence"], message: "Descreva como o consentimento foi obtido" });
+      }
+    }
   });
 
 /** Valor monetário em formato brasileiro ("1.234,56"), opcional. */

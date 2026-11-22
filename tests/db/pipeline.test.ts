@@ -30,7 +30,7 @@ beforeAll(async () => {
     natalCo = await id(
       db.query("insert into public.companies (tenant_id, legal_name, cnae, segment, state_code) values ($1, 'Loja Natal', '4744001', 'construção', 'RN') returning id", [alfa]),
     );
-    await db.query("insert into public.contacts (tenant_id, company_id, name, email) values ($1, $2, 'Compras', 'compras@lojanatal.test')", [alfa, natalCo]);
+    await db.query("insert into public.contacts (tenant_id, company_id, name, email, legal_basis, purposes, legal_basis_note, source) values ($1, $2, 'Compras', 'compras@lojanatal.test', 'legitimate_interest', '{prospecting}', 'Interesse comercial B2B no segmento atendido', 'cadastro manual')", [alfa, natalCo]);
     offTarget = await id(
       db.query("insert into public.companies (tenant_id, legal_name, cnae, segment, state_code) values ($1, 'Padaria RN', '1091101', 'alimentos', 'RN') returning id", [alfa]),
     );

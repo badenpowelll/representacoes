@@ -4,10 +4,9 @@ import { requireTenantPage } from "@/lib/auth/session";
 import { can } from "@/lib/auth/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatCnpj } from "@/lib/validation/cnpj";
-import { LEGAL_BASIS_LABELS } from "@/lib/validation/schemas";
+import { CONTACT_PURPOSE_LABELS, ELIGIBILITY_REASON_LABELS, LEGAL_BASIS_LABELS, type ContactPurpose } from "@/lib/validation/schemas";
 import { Alert, EmptyState } from "@/components/ui";
-import { ContactForm } from "./contact-form";
-import { deleteContact, optOutContact } from "./actions";
+import { ContactForm, ContactRightsButtons } from "./contact-form";
 
 export const metadata = { title: "Empresa · Rep360" };
 
@@ -26,22 +25,27 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
     .maybeSingle();
   if (!company) notFound();
 
-  const [contacts, suppressed, municipio] = await Promise.all([
+  const [contacts, eligibility, municipio] = await Promise.all([
     supabase
       .from("contacts")
-      .select("id, name, role_title, email, phone, legal_basis, consent_at, opted_out_at, source, source_date")
+      .select("id, name, role_title, email, phone, legal_basis, purposes, consent_at, opted_out_at, source, source_date")
       .eq("tenant_id", tenantId)
       .eq("company_id", companyId)
       .order("name"),
-    supabase.from("suppression_list").select("email, domain").eq("tenant_id", tenantId),
+    // Elegibilidade calculada no servidor (supressão completa, base legal, finalidade).
+    supabase.rpc("contact_eligibility", { p_tenant: tenantId, p_company: companyId, p_purpose: "prospecting", p_channel: "email" }),
     company.municipality_id
       ? supabase.from("ref_municipalities").select("name").eq("ibge_code", company.municipality_id).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
-  const blockedEmails = new Set((suppressed.data ?? []).map((s) => s.email?.toLowerCase()).filter(Boolean));
-  const blockedDomains = new Set((suppressed.data ?? []).map((s) => s.domain?.toLowerCase()).filter(Boolean));
-  const isBlocked = (email: string | null) =>
-    Boolean(email) && (blockedEmails.has(email!.toLowerCase()) || blockedDomains.has(email!.split("@")[1]?.toLowerCase()));
+  // Fail-closed: se a elegibilidade não puder ser calculada, ninguém é elegível.
+  const eligibleById = new Map<string, { eligible: boolean; reason: string | null }>();
+  if (!eligibility.error) {
+    for (const r of (eligibility.data ?? []) as { contact_id: string; eligible: boolean; reason: string | null }[]) {
+      eligibleById.set(r.contact_id, { eligible: r.eligible, reason: r.reason });
+    }
+  }
+  const statusOf = (id: string) => eligibleById.get(id) ?? { eligible: false, reason: "unknown" };
   const writable = can(ctx.role, "crm.write");
   const base = `/app/${tenantId}/empresas`;
 
@@ -76,18 +80,25 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
           Contatos
         </h2>
         {contacts.error && <Alert kind="error">Não foi possível carregar os contatos.</Alert>}
+        {eligibility.error && (
+          <Alert kind="error">Não foi possível verificar bloqueios de comunicação. Por segurança, todos os contatos ficam bloqueados.</Alert>
+        )}
         {!contacts.error && contacts.data?.length === 0 && <EmptyState title="Nenhum contato cadastrado" />}
         <ul className="flex flex-col gap-3">
           {(contacts.data ?? []).map((c) => {
-            const blocked = c.opted_out_at || isBlocked(c.email);
+            const st = statusOf(c.id);
             return (
               <li key={c.id} className="rounded-lg border p-3 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{c.name}</span>
                   {c.role_title && <span className="text-neutral-500">· {c.role_title}</span>}
-                  {blocked && (
+                  {st.eligible ? (
+                    <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-950 dark:text-green-200">
+                      Pode receber prospecção por e-mail
+                    </span>
+                  ) : (
                     <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-950 dark:text-red-200">
-                      Comunicação bloqueada
+                      Comunicação bloqueada: {ELIGIBILITY_REASON_LABELS[st.reason ?? "unknown"] ?? st.reason}
                     </span>
                   )}
                 </div>
@@ -97,33 +108,20 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
                   {c.consent_at ? ` · consentimento em ${new Date(c.consent_at).toLocaleString("pt-BR")}` : ""}
                   {c.opted_out_at ? ` · oposição em ${new Date(c.opted_out_at).toLocaleString("pt-BR")}` : ""}
                   {c.source ? ` · origem: ${c.source}` : ""}
+                  {c.purposes?.length
+                    ? ` · finalidades: ${(c.purposes as ContactPurpose[]).map((p) => CONTACT_PURPOSE_LABELS[p] ?? p).join(", ")}`
+                    : ""}
                 </p>
                 {writable && (
-                  <div className="mt-2 flex gap-4">
-                    {!c.opted_out_at && (
-                      <form action={optOutContact}>
-                        <input type="hidden" name="tenant_id" value={tenantId} />
-                        <input type="hidden" name="company_id" value={companyId} />
-                        <input type="hidden" name="contact_id" value={c.id} />
-                        <button className="underline">Registrar oposição (não contatar)</button>
-                      </form>
-                    )}
-                    <form action={deleteContact}>
-                      <input type="hidden" name="tenant_id" value={tenantId} />
-                      <input type="hidden" name="company_id" value={companyId} />
-                      <input type="hidden" name="contact_id" value={c.id} />
-                      <button className="text-red-700 underline" aria-label={`Excluir dados de ${c.name}`}>
-                        Excluir dados
-                      </button>
-                    </form>
-                  </div>
+                  <ContactRightsButtons tenantId={tenantId} companyId={companyId} contactId={c.id} contactName={c.name}
+                    optedOut={Boolean(c.opted_out_at)} />
                 )}
               </li>
             );
           })}
         </ul>
         <p className="text-xs text-neutral-500">
-          A exclusão apaga os dados do contato. Se houver oposição registrada, o e-mail continua na lista de supressão para que não volte a ser contatado.
+          A exclusão apaga os dados do contato. O e-mail continua na lista de supressão para que não volte a ser contatado, mesmo se for recadastrado.
         </p>
       </section>
     </div>
