@@ -2,17 +2,20 @@
 -- PostgreSQL comum (CI e desenvolvimento sem Docker). NÃO é uma migration e
 -- nunca deve ser aplicado em um projeto Supabase real, que já fornece isto.
 
+-- Papéis são globais ao cluster e as suítes rodam em paralelo: tolera corrida.
 do $$
+declare
+  r record;
 begin
-  if not exists (select 1 from pg_roles where rolname = 'anon') then
-    create role anon nologin noinherit;
-  end if;
-  if not exists (select 1 from pg_roles where rolname = 'authenticated') then
-    create role authenticated nologin noinherit;
-  end if;
-  if not exists (select 1 from pg_roles where rolname = 'service_role') then
-    create role service_role nologin noinherit bypassrls;
-  end if;
+  for r in select * from (values ('anon', ''), ('authenticated', ''), ('service_role', ' bypassrls')) v(name, extra) loop
+    if not exists (select 1 from pg_roles where rolname = r.name) then
+      begin
+        execute format('create role %I nologin noinherit%s', r.name, r.extra);
+      exception when duplicate_object or unique_violation then
+        null;
+      end;
+    end if;
+  end loop;
 end
 $$;
 
