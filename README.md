@@ -40,6 +40,8 @@ pnpm test:e2e    # Playwright; requer `npx supabase start` e .env.local apontand
 
 Testes de integração (`tests/integration`) rodam contra a stack Supabase **local** quando `SUPABASE_TEST_URL` (só `localhost`/`127.0.0.1`), `SUPABASE_TEST_ANON_KEY` e `SUPABASE_TEST_SERVICE_ROLE_KEY` estão definidas (valores impressos por `npx supabase status`); caso contrário são pulados. O e2e lê o e-mail de confirmação no Mailpit local (`http://127.0.0.1:54324`).
 
+No GitHub, o workflow **E2E (manual)** (`.github/workflows/e2e.yml`) sobe a mesma stack local no runner e roda integração + e2e. Ele só executa quando disparado manualmente em Actions → Run workflow, pois consome minutos do Actions; o CI de cada PR continua rodando lint, typecheck, testes de banco e build.
+
 Os testes de banco (`tests/db`) precisam apenas de um PostgreSQL 16 acessível em `TEST_DATABASE_ADMIN_URL` (padrão `postgres://postgres:postgres@localhost:5432/postgres`). Cada arquivo cria um banco descartável, aplica `supabase/tests/supabase_stub.sql` (papéis `anon`/`authenticated`/`service_role` e `auth.uid()`) e todas as migrations, e executa as consultas com o papel `authenticated` e claims de JWT simuladas, como o PostgREST faz. Veja a [ADR 0003](docs/adr/0003-testes-de-banco.md).
 
 ## Estrutura

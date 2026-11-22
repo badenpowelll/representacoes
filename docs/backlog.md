@@ -36,7 +36,8 @@ Interface:
 - ⏳ Extração de texto do PDF (fila assíncrona; conteúdo tratado como não confiável), novas versões e publicação
 - ⏳ Produtos (cadastro/importação), contatos das empresas, prospecção manual com fonte
 - ⏳ Carga dos 5.570 municípios do IBGE
-- ⏳ E2E no CI (precisa da stack Supabase via Docker no runner; avaliar tempo/custo de minutos)
+- ✅ Workflow manual de E2E (`workflow_dispatch`), ainda não disparado
+- ⏳ E2E automático em cada PR (decisão do proprietário: minutos do Actions)
 
 ## Pendências e riscos
 - Validar migrations em um Supabase real (staging) — depende de ⛔.

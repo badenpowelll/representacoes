@@ -300,6 +300,43 @@ describe("concorrência", () => {
     );
     expect(rows[0].n).toBe(1);
   });
+
+  it("em REPEATABLE READ, duas transações simultâneas também não removem os dois últimos administradores", async () => {
+    const admin1 = await createUser(pool, "a1@rr.test");
+    const admin2 = await createUser(pool, "a2@rr.test");
+    const gama = await asUser(pool, admin1, async (db) =>
+      (await db.query("select public.create_tenant('Rr', 'rr') as id")).rows[0].id,
+    );
+    await asUser(pool, admin1, (db) =>
+      db.query("insert into public.memberships (tenant_id, user_id, role) values ($1, $2, 'tenant_admin')", [gama, admin2]),
+    );
+
+    const c1 = await pool.connect();
+    const c2 = await pool.connect();
+    const begin = async (c: typeof c1, uid: string) => {
+      await c.query("begin isolation level repeatable read");
+      await c.query("set local role authenticated");
+      await c.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: uid, aal: "aal2" })]);
+    };
+    try {
+      await begin(c1, admin1);
+      await begin(c2, admin2);
+      // cada admin rebaixa a si mesmo; ambos enxergam o outro ainda ativo
+      expect((await c1.query("update public.memberships set role = 'viewer' where user_id = $1 and tenant_id = $2", [admin1, gama])).rowCount).toBe(1);
+      expect((await c2.query("update public.memberships set role = 'viewer' where user_id = $1 and tenant_id = $2", [admin2, gama])).rowCount).toBe(1);
+      const results = await Promise.allSettled([c1.query("commit"), c2.query("commit")]);
+      const failed = results.filter((r) => r.status === "rejected");
+      expect(failed).toHaveLength(1);
+    } finally {
+      c1.release();
+      c2.release();
+    }
+    const { rows } = await pool.query(
+      "select count(*)::int as n from public.memberships where tenant_id = $1 and role = 'tenant_admin' and status = 'active'",
+      [gama],
+    );
+    expect(rows[0].n).toBe(1);
+  });
 });
 
 describe("auditoria", () => {
