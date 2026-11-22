@@ -131,7 +131,7 @@ export function MoveDealForm({ tenantId, dealId, stage }: { tenantId: string; de
           name="stage"
           value={target}
           onChange={(e) => setTarget(e.target.value as DealStage)}
-          className={`${selectClass} flex-1 py-1`}
+          className={`${selectClass} min-w-0 flex-1 py-1`}
         >
           {DEAL_STAGES.map((s) => (
             <option key={s} value={s}>
@@ -139,7 +139,7 @@ export function MoveDealForm({ tenantId, dealId, stage }: { tenantId: string; de
             </option>
           ))}
         </select>
-        <button className="rounded-md border px-2" disabled={target === stage}>
+        <button className="shrink-0 rounded-md border px-2" disabled={target === stage}>
           Mover
         </button>
       </div>
