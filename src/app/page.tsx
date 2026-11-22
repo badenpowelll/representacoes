@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { isSupabaseConfigured } from "@/lib/env";
 
 export default function Home() {
@@ -9,6 +10,14 @@ export default function Home() {
         Inteligência comercial para empresas de representação: catálogos, prospecção, CRM e funil de vendas, com
         isolamento total entre representações.
       </p>
+      <div className="flex gap-4">
+        <Link href="/entrar" className="rounded-md bg-blue-700 px-4 py-2 font-medium text-white">
+          Entrar
+        </Link>
+        <Link href="/cadastro" className="rounded-md border px-4 py-2 font-medium">
+          Criar conta
+        </Link>
+      </div>
       <section aria-labelledby="status" className="rounded-lg border p-4">
         <h2 id="status" className="mb-2 font-medium">
           Status do ambiente
