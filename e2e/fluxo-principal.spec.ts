@@ -180,3 +180,54 @@ test("contexto comercial e territórios", async ({ browser }) => {
   await page.getByRole("button", { name: "Adicionar cobertura" }).click();
   await expect(page.getByText("Esta cobertura já está cadastrada.")).toBeVisible();
 });
+
+test("compatibilidade: calcula score explicável e aprovação gera lead", async ({ browser }) => {
+  const page = await (await browser.newContext()).newPage();
+  await signUpAndConfirm(page, "Fábio Admin", `fabio-${run}@epsilon.test`, `Senha-forte-${run}`);
+  await page.getByLabel("Nome da representação").fill("Epsilon Representações");
+  await page.getByLabel("Identificador").fill(`epsilon-${run}`);
+  await page.getByRole("button", { name: "Criar representação" }).click();
+  await expect(page.getByRole("heading", { name: "Painel" })).toBeVisible();
+
+  await page.getByRole("link", { name: "Contexto" }).click();
+  await page.getByLabel("CNAEs-alvo").fill("4744001");
+  await page.getByRole("button", { name: "Salvar contexto" }).click();
+  await expect(page.getByText("Contexto comercial salvo.")).toBeVisible();
+
+  await page.getByRole("link", { name: "Indústrias" }).click();
+  await page.getByLabel("Nome").fill("Cerâmica Epsilon");
+  await page.getByRole("button", { name: "Cadastrar indústria" }).click();
+  await expect(page.getByRole("cell", { name: "Cerâmica Epsilon" })).toBeVisible();
+
+  await page.getByRole("link", { name: "Territórios" }).click();
+  await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Cerâmica Epsilon" });
+  await page.getByLabel("UF", { exact: true }).selectOption("RN");
+  await page.getByRole("button", { name: "Adicionar cobertura" }).click();
+  await expect(page.getByText("Cobertura adicionada.")).toBeVisible();
+
+  for (const [name, uf] of [
+    ["Depósito Mossoró", "RN"],
+    ["Loja Fortaleza", "CE"],
+  ]) {
+    await page.getByRole("link", { name: "Empresas" }).click();
+    await page.getByLabel("Razão social").fill(name);
+    await page.getByLabel("CNAE principal").fill("4744001");
+    await page.getByLabel("UF").selectOption(uf);
+    await page.getByLabel("Origem do dado").fill("feira do setor");
+    await page.getByRole("button", { name: "Cadastrar empresa" }).click();
+    await expect(page.getByRole("cell", { name })).toBeVisible();
+  }
+
+  await page.getByRole("link", { name: "Compatibilidade" }).click();
+  await page.getByRole("button", { name: "Calcular compatibilidade" }).click();
+  const item = page.getByRole("listitem").filter({ hasText: "Depósito Mossoró" }).first();
+  await expect(item).toContainText("70/100");
+  await expect(item).toContainText("Cobertura na UF RN");
+  await expect(item).toContainText("CNAE 4744001 é alvo");
+  await expect(page.getByText("Loja Fortaleza")).toHaveCount(0);
+  await item.getByRole("button", { name: "Aprovar e criar lead" }).click();
+  await expect(page.getByRole("listitem").filter({ hasText: "Depósito Mossoró" }).first()).toContainText("Aprovado");
+
+  await page.getByRole("link", { name: "Painel" }).click();
+  await expect(page.locator("div").filter({ hasText: /^Leads1$/ })).toBeVisible();
+});
