@@ -24,7 +24,8 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
   type Row = { id: string; title: string; category: string | null; industries: { name: string } | null; catalog_versions: Version[] };
   const rows = (catalogs.data ?? []) as unknown as Row[];
 
-  // Links assinados de curta duração, gerados com a sessão do usuário (políticas de Storage valem).
+  // Links assinados de curta duração (5 min), gerados com a sessão do usuário (políticas de Storage valem).
+  // Janela residual: um link já emitido continua válido até expirar, mesmo após revogar o acesso do usuário.
   const latestPaths = rows.map((r) => [...r.catalog_versions].sort((a, b) => b.version - a.version)[0]?.storage_path).filter(Boolean) as string[];
   const signed = latestPaths.length
     ? (await supabase.storage.from("catalogs").createSignedUrls(latestPaths, 300)).data ?? []
