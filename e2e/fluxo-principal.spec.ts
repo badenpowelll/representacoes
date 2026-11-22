@@ -351,3 +351,52 @@ test("catálogos: envia PDF privado, rejeita arquivo que não é PDF", async ({ 
   await page.getByRole("button", { name: "Cadastrar produto" }).click();
   await expect(page.getByText("Já existe um produto com este SKU nesta indústria.")).toBeVisible();
 });
+
+test("prospecção manual: fonte obrigatória, CNPJ reaproveitado e lead levado ao funil", async ({ browser }) => {
+  const page = await (await browser.newContext()).newPage();
+  await signUpAndConfirm(page, "Hugo Admin", `hugo-${run}@eta.test`, `Senha-forte-${run}`);
+  await createTenant(page, "Eta Representações", `eta-${run}`);
+  for (const name of ["Telhas Eta", "Tubos Eta"]) {
+    await page.getByRole("link", { name: "Indústrias" }).click();
+    await page.getByLabel("Nome").fill(name);
+    await page.getByRole("button", { name: "Cadastrar indústria" }).click();
+    await expect(page.getByRole("cell", { name })).toBeVisible();
+  }
+
+  await page.getByRole("link", { name: "Leads" }).click();
+  await expect(page.getByRole("heading", { name: "Novo prospect" })).toBeVisible();
+  await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Telhas Eta" });
+  await page.getByLabel("Razão social").fill("Construtora Mossoró");
+  await page.getByLabel("CNPJ").fill("11.222.333/0001-81");
+  await page.getByRole("button", { name: "Registrar prospect" }).click();
+  await expect(page.getByText(/Informe a fonte/)).toBeVisible();
+
+  await page.getByLabel("Fonte do dado").fill("site da empresa");
+  await page.getByLabel("UF", { exact: true }).selectOption("RN");
+  await page.getByLabel("Município").selectOption({ label: "Mossoró" });
+  await page.getByRole("button", { name: "Registrar prospect" }).click();
+  await expect(page.getByText("Prospect e lead registrados.")).toBeVisible();
+
+  // Mesmo CNPJ para outra indústria reaproveita a empresa; mesma indústria é recusada
+  await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Tubos Eta" });
+  await page.getByLabel("Razão social").fill("Construtora Mossoró Ltda");
+  await page.getByLabel("CNPJ").fill("11222333000181");
+  await page.getByLabel("Fonte do dado").fill("feira do setor");
+  await page.getByRole("button", { name: "Registrar prospect" }).click();
+  await expect(page.getByText("Lead registrado para uma empresa já cadastrada (mesmo CNPJ).")).toBeVisible();
+  await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Tubos Eta" });
+  await page.getByLabel("Razão social").fill("Construtora Mossoró");
+  await page.getByLabel("CNPJ").fill("11222333000181");
+  await page.getByLabel("Fonte do dado").fill("feira do setor");
+  await page.getByRole("button", { name: "Registrar prospect" }).click();
+  await expect(page.getByText("Já existe um lead desta empresa para esta indústria.")).toBeVisible();
+
+  const telhas = page.getByRole("listitem").filter({ hasText: "Telhas Eta" });
+  await expect(telhas).toContainText("Fonte: site da empresa");
+  await telhas.getByRole("button", { name: "Levar ao funil" }).click();
+  await expect(telhas).toContainText("No funil");
+  await expect(telhas).toContainText("Qualificado");
+
+  await page.getByRole("link", { name: "Funil" }).click();
+  await expect(page.getByRole("region", { name: /Novo/ }).getByText("Construtora Mossoró · Telhas Eta")).toBeVisible();
+});

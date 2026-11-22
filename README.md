@@ -64,7 +64,7 @@ docs/               arquitetura, ADRs e backlog
 
 ## Limitações atuais
 
-- Telas ainda não implementadas: importação de produtos em lote, publicação/versões de catálogos e extração de PDF, prospecção. O banco e as políticas desses módulos já existem e estão testados.
+- Telas ainda não implementadas: importação de produtos em lote, publicação/versões de catálogos e extração de PDF. O banco e as políticas desses módulos já existem e estão testados.
 - MFA: administradores só têm privilégios com sessão AAL2 (TOTP). Ainda não há códigos de recuperação próprios; a recuperação é feita pelo suporte da plataforma (ADR 0004).
 - Links de download de catálogos são URLs assinadas de 5 minutos: um link já emitido continua válido até expirar, mesmo que o acesso do usuário seja revogado nesse intervalo.
 - Upload de catálogo passa pela server action (arquivo em memória, até 50 MB). Antes de produção: upload resumível direto, quarentena e parser de PDF isolado (backlog).

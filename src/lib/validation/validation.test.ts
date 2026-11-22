@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatCnpj, isValidCnpj } from "./cnpj";
-import { companySchema, dealSchema, industrySchema, moveDealSchema, optionalMunicipality, contactSchema, productSchema } from "./schemas";
+import { companySchema, dealSchema, industrySchema, moveDealSchema, optionalMunicipality, contactSchema, productSchema, prospectSchema } from "./schemas";
 
 describe("CNPJ", () => {
   it("valida dígitos verificadores", () => {
@@ -80,5 +80,21 @@ describe("produto", () => {
     expect(productSchema.safeParse({ ...base, authorized_price: "12.34.5" }).success).toBe(false);
     expect(productSchema.safeParse({ ...base, authorized_price: "-3" }).success).toBe(false);
     expect(productSchema.safeParse({ ...base, price_valid_until: "2027-01-31" }).success).toBe(false);
+  });
+});
+
+describe("prospecção manual", () => {
+  const base = { industry_id: "6f1c1e0a-3b7a-4c55-9d43-6f0b8f2d9a11", legal_name: "Loja", source: "site da empresa", source_date: "2026-11-01" };
+  it("exige fonte e data não futura", () => {
+    expect(prospectSchema.safeParse(base).success).toBe(true);
+    expect(prospectSchema.safeParse({ ...base, source: "" }).success).toBe(false);
+    expect(prospectSchema.safeParse({ ...base, source_date: "" }).success).toBe(false);
+    expect(prospectSchema.safeParse({ ...base, source_date: "2999-01-01" }).success).toBe(false);
+  });
+  it("UF e município opcionais", () => {
+    const r = prospectSchema.parse({ ...base, state_code: "", municipality_id: "" });
+    expect(r.state_code).toBeNull();
+    expect(r.municipality_id).toBeNull();
+    expect(prospectSchema.parse({ ...base, state_code: "RN", municipality_id: "2408102" }).municipality_id).toBe(2408102);
   });
 });

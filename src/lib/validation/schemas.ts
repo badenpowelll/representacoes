@@ -159,3 +159,25 @@ export const productSchema = z
     path: ["price_valid_until"],
     message: "Informe o preço autorizado para definir a vigência",
   });
+
+/** Prospecção manual: fonte e data da fonte obrigatórias (não inventar empresas). */
+export const prospectSchema = z.object({
+  industry_id: z.uuid("Selecione a indústria"),
+  legal_name: z.string().trim().min(2, "Informe a razão social").max(300),
+  cnpj: optionalCnpj,
+  cnae: optionalText(7).refine((v) => v == null || /^\d{7}$/.test(v), { message: "CNAE deve ter 7 dígitos" }),
+  segment: optionalText(120),
+  state_code: z
+    .string()
+    .nullish()
+    .transform((v) => (v ? v : null))
+    .pipe(z.enum(UF_CODES).nullable()),
+  municipality_id: optionalMunicipality,
+  source: z.string().trim().min(2, "Informe a fonte (ex.: site da empresa, Receita Federal)").max(300),
+  source_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Informe a data em que o dado foi obtido")
+    .refine((v) => v <= new Date().toISOString().slice(0, 10), { message: "A data da fonte não pode ser futura" }),
+});
+
+export const LEAD_STATUS_LABELS = { new: "Novo", qualified: "Qualificado", discarded: "Descartado" } as const;

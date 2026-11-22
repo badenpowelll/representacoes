@@ -23,6 +23,7 @@ export default async function TenantLayout({
     { href: `${base}/catalogos`, label: "Catálogos" },
     { href: `${base}/produtos`, label: "Produtos" },
     { href: `${base}/empresas`, label: "Empresas" },
+    { href: `${base}/leads`, label: "Leads" },
     { href: `${base}/compatibilidade`, label: "Compatibilidade" },
     { href: `${base}/funil`, label: "Funil" },
     { href: `${base}/equipe`, label: "Equipe" },
