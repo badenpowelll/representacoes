@@ -2,7 +2,7 @@
 
 SaaS B2B multi-tenant de inteligência comercial para empresas de representação: catálogos, prospecção, CRM, funil de vendas e (futuramente) campanhas por Gmail com agente de IA. A especificação completa está em [`CLAUDE.md`](CLAUDE.md).
 
-> **Status:** Fase 0 concluída e Fase 1 em andamento (banco completo da Fase 1; telas de autenticação, onboarding, painel, indústrias, empresas e funil). Não há ambiente de staging ou produção. Nenhum envio real de e-mail.
+> **Status:** Fase 0 concluída e Fase 1 em andamento (banco completo da Fase 1; telas de autenticação, onboarding, equipe/convites, contexto, indústrias, territórios, catálogos, empresas, compatibilidade, funil e painel). Não há ambiente de staging ou produção. Nenhum envio real de e-mail.
 
 ## Stack
 
@@ -62,7 +62,7 @@ docs/               arquitetura, ADRs e backlog
 
 ## Limitações atuais
 
-- Telas ainda não implementadas: convites, contexto comercial, territórios, catálogos (upload), contatos, compatibilidade e prospecção. O banco e as políticas desses módulos já existem e estão testados.
+- Telas ainda não implementadas: produtos, contatos das empresas, publicação/versões de catálogos e extração de PDF, prospecção. O banco e as políticas desses módulos já existem e estão testados.
 - MFA obrigatório para administradores ainda não é exigido na interface (TOTP habilitado no `config.toml`).
 - Municípios do IBGE ainda não carregados (apenas as 27 UFs).
 - Gmail, campanhas e agente de IA são Fases 2 e 3.

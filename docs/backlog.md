@@ -27,10 +27,13 @@ Interface:
 - ✅ Painel básico (indústrias, clientes, prospects, leads, vendas ganhas, negócios por etapa)
 - ✅ Indústrias, empresas e funil Kanban (criar e mover negócios, motivo de perda)
 - ✅ E2E Playwright do fluxo principal, incluindo acesso negado entre representações
-- ⏳ Convites (telas de convidar/aceitar; RPCs já existem)
+- ✅ Equipe e convites (link exibido uma vez; sem envio de e-mail nesta fase)
+- ✅ Contexto comercial e territórios
+- ✅ Compatibilidade: calcular, ver motivos do score, aprovar (gera lead) ou rejeitar
+- ✅ Catálogos: upload de PDF privado (validação de assinatura %PDF, SHA-256, link assinado de 5 min)
 - ⏳ MFA obrigatório para administradores na interface
-- ⏳ Contexto comercial, territórios, catálogos (upload + extração de PDF), contatos
-- ⏳ Tela de compatibilidade (revisar matches) e prospecção manual
+- ⏳ Extração de texto do PDF (fila assíncrona; conteúdo tratado como não confiável), novas versões e publicação
+- ⏳ Produtos (cadastro/importação), contatos das empresas, prospecção manual com fonte
 - ⏳ Carga dos 5.570 municípios do IBGE
 - ⏳ E2E no CI (precisa da stack Supabase via Docker no runner; avaliar tempo/custo de minutos)
 

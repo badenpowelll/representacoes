@@ -231,3 +231,37 @@ test("compatibilidade: calcula score explicável e aprovação gera lead", async
   await page.getByRole("link", { name: "Painel" }).click();
   await expect(page.locator("div").filter({ hasText: /^Leads1$/ })).toBeVisible();
 });
+
+test("catálogos: envia PDF privado, rejeita arquivo que não é PDF", async ({ browser }) => {
+  const page = await (await browser.newContext()).newPage();
+  await signUpAndConfirm(page, "Gil Admin", `gil-${run}@zeta.test`, `Senha-forte-${run}`);
+  await page.getByLabel("Nome da representação").fill("Zeta Representações");
+  await page.getByLabel("Identificador").fill(`zeta-${run}`);
+  await page.getByRole("button", { name: "Criar representação" }).click();
+  await expect(page.getByRole("heading", { name: "Painel" })).toBeVisible();
+  await page.getByRole("link", { name: "Indústrias" }).click();
+  await page.getByLabel("Nome").fill("Metais Zeta");
+  await page.getByRole("button", { name: "Cadastrar indústria" }).click();
+  await expect(page.getByRole("cell", { name: "Metais Zeta" })).toBeVisible();
+
+  await page.getByRole("link", { name: "Catálogos" }).click();
+  await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Metais Zeta" });
+  await page.getByLabel("Título").fill("Linha 2027");
+  await page.getByLabel("Arquivo PDF").setInputFiles({ name: "falso.pdf", mimeType: "application/pdf", buffer: Buffer.from("não sou pdf") });
+  await page.getByRole("button", { name: "Enviar catálogo" }).click();
+  await expect(page.getByText("O arquivo precisa ser um PDF")).toBeVisible();
+
+  await page.getByLabel("Arquivo PDF").setInputFiles({
+    name: "linha.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF"),
+  });
+  await page.getByRole("button", { name: "Enviar catálogo" }).click();
+  await expect(page.getByText("Catálogo enviado como rascunho.")).toBeVisible();
+  const item = page.getByRole("listitem").filter({ hasText: "Linha 2027" });
+  await expect(item).toContainText("v1 · Rascunho");
+  const href = await item.getByRole("link", { name: "Abrir PDF" }).getAttribute("href");
+  const res = await page.request.get(href!);
+  expect(res.status()).toBe(200);
+  expect((await res.body()).subarray(0, 5).toString()).toBe("%PDF-");
+});
