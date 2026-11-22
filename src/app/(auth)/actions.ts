@@ -49,7 +49,7 @@ export async function signUp(_: ActionState, form: FormData): Promise<ActionStat
     password: parsed.data.password,
     options: {
       data: { full_name: parsed.data.full_name },
-      emailRedirectTo: `${await origin()}/auth/callback?next=/app`,
+      emailRedirectTo: `${await origin()}/auth/callback?next=${encodeURIComponent(safeNext(form.get("next")))}`,
     },
   });
   // Mesma resposta para e-mail novo ou existente (não revela cadastros).

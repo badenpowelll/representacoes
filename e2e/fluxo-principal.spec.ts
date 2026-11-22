@@ -99,3 +99,47 @@ test("login com senha errada mostra erro genérico", async ({ page }) => {
   await page.getByRole("button", { name: "Entrar" }).click();
   await expect(page.getByText("E-mail ou senha incorretos.")).toBeVisible();
 });
+
+test("convite: admin gera link, convidado se cadastra e entra com o papel definido", async ({ browser }) => {
+  const password = `Senha-forte-${run}`;
+  const admin = await (await browser.newContext()).newPage();
+  await signUpAndConfirm(admin, "Carla Admin", `carla-${run}@gama.test`, password);
+  await admin.getByLabel("Nome da representação").fill("Gama Representações");
+  await admin.getByLabel("Identificador").fill(`gama-${run}`);
+  await admin.getByRole("button", { name: "Criar representação" }).click();
+  await expect(admin.getByRole("heading", { name: "Painel" })).toBeVisible();
+  const tenantUrl = admin.url();
+
+  await admin.getByRole("link", { name: "Equipe" }).click();
+  await admin.getByLabel("E-mail do convidado").fill(`davi-${run}@gama.test`);
+  await admin.getByLabel("Papel").selectOption("representative");
+  await admin.getByRole("button", { name: "Gerar convite" }).click();
+  const link = await admin.getByLabel(/Link do convite/).inputValue();
+  expect(link).toMatch(/\/convite\/[0-9a-f]{64}$/);
+  await expect(admin.getByText(`davi-${run}@gama.test · Representante`)).toBeVisible();
+
+  // Convidado abre o link sem conta → login → cadastro → confirmação → volta ao convite
+  const guest = await (await browser.newContext()).newPage();
+  await guest.goto(link);
+  await expect(guest).toHaveURL(/\/entrar\?next=/);
+  await guest.getByRole("link", { name: "Criar conta" }).click();
+  await guest.getByLabel("Nome completo").fill("Davi Rep");
+  await guest.getByLabel("E-mail").fill(`davi-${run}@gama.test`);
+  await guest.getByLabel("Senha").fill(password);
+  await guest.getByRole("button", { name: "Criar conta" }).click();
+  await guest.goto(await confirmationLink(`davi-${run}@gama.test`));
+  await expect(guest).toHaveURL(/\/convite\//);
+  await guest.getByRole("button", { name: "Aceitar convite" }).click();
+  await expect(guest).toHaveURL(tenantUrl);
+  await expect(guest.getByText("Gama Representações · Representante")).toBeVisible();
+
+  // Reutilizar o link falha
+  await guest.goto(link);
+  await guest.getByRole("button", { name: "Aceitar convite" }).click();
+  await expect(guest.getByRole("alert").filter({ hasText: "Convite inválido" })).toBeVisible();
+
+  // Representante não vê a área de convites
+  await guest.goto(`${tenantUrl}/equipe`);
+  await expect(guest.getByText("Carla Admin")).toBeVisible();
+  await expect(guest.getByRole("button", { name: "Gerar convite" })).toHaveCount(0);
+});

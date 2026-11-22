@@ -20,6 +20,7 @@ export default async function TenantLayout({
     { href: `${base}/industrias`, label: "Indústrias" },
     { href: `${base}/empresas`, label: "Empresas" },
     { href: `${base}/funil`, label: "Funil" },
+    { href: `${base}/equipe`, label: "Equipe" },
   ];
   return (
     <div className="min-h-screen">

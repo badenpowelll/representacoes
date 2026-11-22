@@ -21,7 +21,7 @@ export function SignInForm({ next }: { next?: string }) {
           Esqueci minha senha
         </Link>{" "}
         ·{" "}
-        <Link href="/cadastro" className="underline">
+        <Link href={next ? `/cadastro?next=${encodeURIComponent(next)}` : "/cadastro"} className="underline">
           Criar conta
         </Link>
       </p>
@@ -29,11 +29,12 @@ export function SignInForm({ next }: { next?: string }) {
   );
 }
 
-export function SignUpForm() {
+export function SignUpForm({ next }: { next?: string }) {
   const [state, action] = useActionState(signUp, initialState);
   if (state.ok) return <Alert kind="success">{state.message}</Alert>;
   return (
     <form key={state.nonce} action={action} className="flex flex-col gap-4" noValidate>
+      <input type="hidden" name="next" value={next ?? "/app"} />
       {state.message && <Alert kind="error">{state.message}</Alert>}
       <Field label="Nome completo" name="full_name"
         defaultValue={state.values?.full_name} autoComplete="name" required error={state.fieldErrors?.full_name} />
