@@ -143,3 +143,40 @@ test("convite: admin gera link, convidado se cadastra e entra com o papel defini
   await expect(guest.getByText("Carla Admin")).toBeVisible();
   await expect(guest.getByRole("button", { name: "Gerar convite" })).toHaveCount(0);
 });
+
+test("contexto comercial e territórios", async ({ browser }) => {
+  const page = await (await browser.newContext()).newPage();
+  await signUpAndConfirm(page, "Edu Admin", `edu-${run}@delta.test`, `Senha-forte-${run}`);
+  await page.getByLabel("Nome da representação").fill("Delta Representações");
+  await page.getByLabel("Identificador").fill(`delta-${run}`);
+  await page.getByRole("button", { name: "Criar representação" }).click();
+  await expect(page.getByRole("heading", { name: "Painel" })).toBeVisible();
+
+  await page.getByRole("link", { name: "Contexto" }).click();
+  await page.getByLabel("CNAEs-alvo").fill("4744-0/01, 123");
+  await page.getByRole("button", { name: "Salvar contexto" }).click();
+  await expect(page.getByText("Cada CNAE deve ter 7 dígitos")).toBeVisible();
+  await expect(page.getByLabel("CNAEs-alvo")).toHaveValue("4744-0/01, 123");
+  await page.getByLabel("CNAEs-alvo").fill("4744-0/01, 4742300");
+  await page.getByLabel("Segmentos-alvo").fill("construção, varejo");
+  await page.getByRole("button", { name: "Salvar contexto" }).click();
+  await expect(page.getByText("Contexto comercial salvo.")).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("CNAEs-alvo")).toHaveValue("4744001, 4742300");
+
+  await page.getByRole("link", { name: "Indústrias" }).click();
+  await page.getByLabel("Nome").fill("Tintas Delta");
+  await page.getByRole("button", { name: "Cadastrar indústria" }).click();
+  await expect(page.getByRole("cell", { name: "Tintas Delta" })).toBeVisible();
+
+  await page.getByRole("link", { name: "Territórios" }).click();
+  await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Tintas Delta" });
+  await page.getByLabel("UF", { exact: true }).selectOption("RN");
+  await page.getByRole("button", { name: "Adicionar cobertura" }).click();
+  await expect(page.getByText("Cobertura adicionada.")).toBeVisible();
+  await expect(page.getByRole("cell", { name: "RN", exact: true })).toBeVisible();
+  await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Tintas Delta" });
+  await page.getByLabel("UF", { exact: true }).selectOption("RN");
+  await page.getByRole("button", { name: "Adicionar cobertura" }).click();
+  await expect(page.getByText("Esta cobertura já está cadastrada.")).toBeVisible();
+});

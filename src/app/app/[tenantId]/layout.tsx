@@ -17,7 +17,9 @@ export default async function TenantLayout({
   const base = `/app/${tenantId}`;
   const links = [
     { href: base, label: "Painel" },
+    { href: `${base}/contexto`, label: "Contexto" },
     { href: `${base}/industrias`, label: "Indústrias" },
+    { href: `${base}/territorios`, label: "Territórios" },
     { href: `${base}/empresas`, label: "Empresas" },
     { href: `${base}/funil`, label: "Funil" },
     { href: `${base}/equipe`, label: "Equipe" },
