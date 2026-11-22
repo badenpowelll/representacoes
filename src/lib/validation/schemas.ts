@@ -230,6 +230,13 @@ export const optionalBrl = z
   .transform((v) => (v == null ? null : Number(v.replace(/\./g, "").replace(",", "."))));
 
 /** Produto: preço somente quando autorizado pela indústria (o agente nunca inventa preço). */
+/** "AAAA-MM-DD" que existe no calendário (recusa 31/02). */
+export function isRealDate(v: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const d = new Date(`${v}T12:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+}
+
 export const productSchema = z
   .object({
     industry_id: z.uuid("Selecione a indústria"),
@@ -246,12 +253,36 @@ export const productSchema = z
       .string()
       .nullish()
       .transform((v) => (v ? v : null))
-      .refine((v) => v == null || /^\d{4}-\d{2}-\d{2}$/.test(v), { message: "Data inválida" }),
+      .refine((v) => v == null || isRealDate(v), {
+        message: "Data inválida",
+      }),
+    price_source: optionalText(300),
+    price_reference: optionalText(300),
   })
-  .refine((p) => p.price_valid_until == null || p.authorized_price != null, {
-    path: ["price_valid_until"],
-    message: "Informe o preço autorizado para definir a vigência",
-  });
+  .superRefine((p, ctx) => {
+    if (p.price_valid_until != null && p.authorized_price == null) {
+      ctx.addIssue({ code: "custom", path: ["price_valid_until"], message: "Informe o preço autorizado para definir a vigência" });
+    }
+    if (p.authorized_price != null) {
+      if ((p.price_source?.length ?? 0) < 2) {
+        ctx.addIssue({ code: "custom", path: ["price_source"], message: "Informe a origem do preço (ex.: tabela da indústria)" });
+      }
+      if ((p.price_reference?.length ?? 0) < 2) {
+        ctx.addIssue({ code: "custom", path: ["price_reference"], message: "Informe a referência do documento" });
+      }
+    }
+  })
+  .transform((p) => (p.authorized_price == null ? { ...p, price_source: null, price_reference: null } : p));
+
+/** Motivos de inelegibilidade devolvidos por public.product_eligibility. */
+export const PRODUCT_REASON_LABELS: Record<string, string> = {
+  inactive: "produto inativo",
+  no_price: "sem preço autorizado",
+  no_validity: "preço sem vigência",
+  price_expired: "preço vencido",
+  no_provenance: "preço sem procedência",
+  unknown: "elegibilidade indeterminada",
+};
 
 /** Prospecção manual: fonte e data da fonte obrigatórias (não inventar empresas). */
 export const prospectSchema = z.object({

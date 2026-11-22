@@ -20,7 +20,9 @@ export async function createProduct(_: ActionState, form: FormData): Promise<Act
           ? { sku: "Já existe um produto com este SKU nesta indústria." }
           : error.code === "23514" && /indústria/i.test(error.message ?? "")
             ? { catalog_version_id: "Este catálogo é de outra indústria." }
-            : undefined;
+            : error.code === "23514" && /origem e referência/i.test(error.message ?? "")
+              ? { price_reference: "Preço autorizado exige origem e referência do documento." }
+              : undefined;
       return withValues(fieldErrors ? { fieldErrors } : { message: dbErrorMessage(error) }, form);
     }
     revalidatePath(`/app/${ctx.tenantId}/produtos`);

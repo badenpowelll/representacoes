@@ -70,7 +70,7 @@ describe("catálogos e versões", () => {
 describe("produtos", () => {
   it("SKU é único por indústria e preço negativo é rejeitado", async () => {
     await asUser(pool, alfaAdmin, (db) =>
-      db.query("insert into public.products (tenant_id, industry_id, sku, name, authorized_price) values ($1, $2, 'A-1', 'Parafuso', 1.50)", [
+      db.query("insert into public.products (tenant_id, industry_id, sku, name, authorized_price, price_source, price_reference) values ($1, $2, 'A-1', 'Parafuso', 1.50, 'tabela da indústria', 'TAB-2026-11')", [
         alfa,
         alfaIndustry,
       ]),
@@ -79,7 +79,7 @@ describe("produtos", () => {
       db.query("insert into public.products (tenant_id, industry_id, sku, name) values ($1, $2, 'A-1', 'Outro')", [alfa, alfaIndustry]),
     );
     const neg = await tryAsUser(pool, alfaAdmin, (db) =>
-      db.query("insert into public.products (tenant_id, industry_id, sku, name, authorized_price) values ($1, $2, 'A-2', 'X', -1)", [
+      db.query("insert into public.products (tenant_id, industry_id, sku, name, authorized_price, price_source, price_reference) values ($1, $2, 'A-2', 'X', -1, 'tabela', 'TAB-1')", [
         alfa,
         alfaIndustry,
       ]),

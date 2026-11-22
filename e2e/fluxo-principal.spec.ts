@@ -388,15 +388,27 @@ test("catálogos: envia PDF privado, rejeita arquivo que não é PDF", async ({ 
   await page.getByLabel("Preço válido até").fill("2027-06-30");
   await page.getByLabel("Catálogo de origem").selectOption({ label: "Linha 2027 v1 (Metais Zeta)" });
   await page.getByRole("button", { name: "Cadastrar produto" }).click();
+  // Preço sem procedência é recusado (o agente nunca usa preço sem origem documentada).
+  await expect(page.getByText("Informe a origem do preço", { exact: false })).toBeVisible();
+  await expect(page.getByText("Informe a referência do documento")).toBeVisible();
+  await page.getByLabel("Origem do preço").fill("tabela de preços da indústria");
+  await page.getByLabel("Referência do documento").fill("Tabela 11/2026");
+  await page.getByRole("button", { name: "Cadastrar produto" }).click();
   await expect(page.getByText("Produto cadastrado.")).toBeVisible();
   const prod = page.getByRole("row").filter({ hasText: "PRF-10" });
   await expect(prod).toContainText("R$ 1.234,50");
+  await expect(prod).toContainText("Pode ir em comunicações");
   await expect(prod).toContainText("Linha 2027 v1");
   await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Metais Zeta" });
   await page.getByLabel("SKU").fill("PRF-10");
   await page.getByLabel("Nome do produto").fill("Duplicado");
   await page.getByRole("button", { name: "Cadastrar produto" }).click();
   await expect(page.getByText("Já existe um produto com este SKU nesta indústria.")).toBeVisible();
+  await page.getByLabel("SKU").fill("PRF-20");
+  await page.getByLabel("Nome do produto").fill("Perfil sem preço");
+  await page.getByRole("button", { name: "Cadastrar produto" }).click();
+  await expect(page.getByText("Produto cadastrado.")).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: "PRF-20" })).toContainText("Fora de comunicações: sem preço autorizado");
 });
 
 test("prospecção manual: fonte obrigatória, CNPJ reaproveitado e lead levado ao funil", async ({ browser }) => {

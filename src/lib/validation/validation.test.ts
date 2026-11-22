@@ -84,8 +84,15 @@ describe("produto", () => {
   const base = { industry_id: "6f1c1e0a-3b7a-4c55-9d43-6f0b8f2d9a11", sku: "CIM-50", name: "Cimento 50 kg" };
   it("preço é opcional e aceita formato brasileiro", () => {
     expect(productSchema.parse(base).authorized_price).toBeNull();
-    expect(productSchema.parse({ ...base, authorized_price: "1.234,56" }).authorized_price).toBe(1234.56);
-    expect(productSchema.parse({ ...base, authorized_price: "39,9" }).authorized_price).toBe(39.9);
+    const src = { price_source: "tabela da indústria", price_reference: "TAB-2026-11" };
+    expect(productSchema.parse({ ...base, ...src, authorized_price: "1.234,56" }).authorized_price).toBe(1234.56);
+    expect(productSchema.parse({ ...base, ...src, authorized_price: "39,9" }).authorized_price).toBe(39.9);
+    expect(productSchema.parse({ ...base, ...src }).price_source).toBeNull();
+  });
+  it("preço exige origem e referência; data precisa ser real", () => {
+    expect(productSchema.safeParse({ ...base, authorized_price: "10" }).success).toBe(false);
+    expect(productSchema.safeParse({ ...base, authorized_price: "10", price_source: "tabela" }).success).toBe(false);
+    expect(productSchema.safeParse({ ...base, authorized_price: "10", price_source: "tabela", price_reference: "T1", price_valid_until: "2027-02-31" }).success).toBe(false);
   });
   it("rejeita preço malformado e vigência sem preço", () => {
     expect(productSchema.safeParse({ ...base, authorized_price: "12.34.5" }).success).toBe(false);

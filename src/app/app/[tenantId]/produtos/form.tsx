@@ -42,7 +42,12 @@ export function ProductForm({
       <Field label="Categoria" name="category" defaultValue={v.category} error={e.category} />
       <Field label="Preço autorizado (R$)" name="authorized_price" inputMode="decimal" defaultValue={v.authorized_price}
         hint="Só preencha com preço autorizado pela indústria" error={e.authorized_price} />
-      <Field label="Preço válido até" name="price_valid_until" type="date" defaultValue={v.price_valid_until} error={e.price_valid_until} />
+      <Field label="Preço válido até" name="price_valid_until" type="date" defaultValue={v.price_valid_until} error={e.price_valid_until}
+        hint="Sem vigência, o produto não entra em comunicações" />
+      <Field label="Origem do preço" name="price_source" defaultValue={v.price_source} error={e.price_source}
+        hint="Obrigatória com preço. Ex.: tabela de preços da indústria" />
+      <Field label="Referência do documento" name="price_reference" defaultValue={v.price_reference} error={e.price_reference}
+        hint="Obrigatória com preço. Ex.: Tabela 11/2026, e-mail de 05/11" />
       <div className="flex flex-col gap-1 sm:col-span-2">
         <label htmlFor="catalog_version_id" className="text-sm font-medium">
           Catálogo de origem

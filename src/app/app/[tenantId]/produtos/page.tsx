@@ -1,6 +1,7 @@
 import { requireTenantPage } from "@/lib/auth/session";
 import { can } from "@/lib/auth/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { PRODUCT_REASON_LABELS } from "@/lib/validation/schemas";
 import { Alert, EmptyState } from "@/components/ui";
 import { ProductForm } from "./form";
 import { toggleProduct } from "./actions";
@@ -14,9 +15,8 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
   const ctx = await requireTenantPage(tenantId);
   const supabase = await createSupabaseServerClient();
   const writable = can(ctx.role, "catalog.write");
-  const today = new Date().toISOString().slice(0, 10);
 
-  const [products, industries, versions] = await Promise.all([
+  const [products, industries, versions, eligibility] = await Promise.all([
     supabase
       .from("products")
       .select("id, sku, name, category, authorized_price, price_valid_until, active, industries(name), catalog_versions(version, catalogs(title))")
@@ -29,7 +29,16 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
       .select("id, version, catalogs(title, industries(name))")
       .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false }),
+    // Elegibilidade para comunicação calculada no banco (fonte única, data comercial do Brasil).
+    supabase.rpc("product_eligibility", { p_tenant: tenantId }),
   ]);
+  const eligibleById = new Map<string, { eligible: boolean; reason: string | null }>();
+  if (!eligibility.error) {
+    for (const r of (eligibility.data ?? []) as { product_id: string; eligible: boolean; reason: string | null }[]) {
+      eligibleById.set(r.product_id, { eligible: r.eligible, reason: r.reason });
+    }
+  }
+  const statusOf = (id: string) => eligibleById.get(id) ?? { eligible: false, reason: "unknown" };
   type Row = {
     id: string; sku: string; name: string; category: string | null; authorized_price: number | null;
     price_valid_until: string | null; active: boolean; industries: { name: string } | null;
@@ -58,6 +67,9 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
         </section>
       )}
       {products.error && <Alert kind="error">Não foi possível carregar os produtos.</Alert>}
+      {eligibility.error && (
+        <Alert kind="error">Não foi possível verificar quais produtos podem ir em comunicações. Por segurança, nenhum está liberado.</Alert>
+      )}
       {!products.error && rows.length === 0 && <EmptyState title="Nenhum produto cadastrado" />}
       {rows.length > 0 && (
         <div className="overflow-x-auto">
@@ -76,7 +88,8 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
             </thead>
             <tbody>
               {rows.map((p) => {
-                const expired = p.price_valid_until != null && p.price_valid_until < today;
+                const st = statusOf(p.id);
+                const expired = st.reason === "price_expired";
                 return (
                   <tr key={p.id} className="border-b">
                     <td className="py-2 pr-4 font-mono">{p.sku}</td>
@@ -101,7 +114,12 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
                     <td className="py-2 pr-4">
                       {p.catalog_versions ? `${p.catalog_versions.catalogs?.title ?? ""} v${p.catalog_versions.version}` : "—"}
                     </td>
-                    <td className="py-2 pr-4">{p.active ? "Ativo" : "Inativo"}</td>
+                    <td className="py-2 pr-4">
+                      {p.active ? "Ativo" : "Inativo"}
+                      <span className={st.eligible ? "block text-green-700" : "block text-neutral-500"}>
+                        {st.eligible ? "Pode ir em comunicações" : `Fora de comunicações: ${PRODUCT_REASON_LABELS[st.reason ?? "unknown"] ?? st.reason}`}
+                      </span>
+                    </td>
                     {writable && (
                       <td className="py-2">
                         <form action={toggleProduct}>

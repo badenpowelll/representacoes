@@ -39,6 +39,8 @@ Interface:
 - ✅ Contatos das empresas: base legal, consentimento com data, oposição (vai para a supressão) e exclusão a pedido
 - ✅ Produtos: cadastro com SKU único por indústria, preço autorizado com vigência e vínculo à versão do catálogo
 - ✅ Prospecção manual: prospect + lead numa transação, fonte e data obrigatórias, CNPJ reaproveitado, lead levado ao funil
+- ✅ Parecer 004-complemento (P1): abrangência territorial explícita; oposição e exclusão por RPC com auditoria; elegibilidade de contatos (`contact_eligibility`) e de produtos (`product_eligibility`) no servidor, fail-closed; base legal sem padrão, com finalidade, justificativa e evidência; preço com origem, referência, responsável, data e histórico
+- ⏳ P2 do parecer 004-complemento: verificação IBGE no CI, direitos do titular (exportação), retenção da supressão, centavos inteiros, paginação de produtos, erros em toggleProduct
 - ⏳ Importação de produtos em lote (planilha)
 - ✅ Municípios do IBGE: snapshot CSV versionado com data e sha256, migration gerada por script
 - ✅ Workflow manual de E2E (`workflow_dispatch`), ainda não disparado
@@ -47,4 +49,4 @@ Interface:
 ## Pendências e riscos
 - Validar migrations em um Supabase real (staging) — depende de ⛔.
 - Codex no GitHub requer environment em chatgpt.com/codex — decisão do proprietário.
-- Base legal LGPD por finalidade a ser definida com o proprietário antes de campanhas.
+- Base legal LGPD: finalidades por contato já existem (prospecção, relacionamento, catálogos, atendimento); política por canal além de e-mail ainda a definir com o proprietário antes de campanhas.
