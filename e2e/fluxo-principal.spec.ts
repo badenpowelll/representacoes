@@ -330,4 +330,24 @@ test("catálogos: envia PDF privado, rejeita arquivo que não é PDF", async ({ 
   const res = await page.request.get(href!);
   expect(res.status()).toBe(200);
   expect((await res.body()).subarray(0, 5).toString()).toBe("%PDF-");
+
+  // Produtos: preço autorizado com vigência, vínculo ao catálogo e SKU único por indústria
+  await page.getByRole("link", { name: "Produtos" }).click();
+  await expect(page.getByRole("heading", { name: "Novo produto" })).toBeVisible();
+  await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Metais Zeta" });
+  await page.getByLabel("SKU").fill("PRF-10");
+  await page.getByLabel("Nome do produto").fill("Perfil de aço 10 mm");
+  await page.getByLabel("Preço autorizado (R$)").fill("1.234,5");
+  await page.getByLabel("Preço válido até").fill("2027-06-30");
+  await page.getByLabel("Catálogo de origem").selectOption({ label: "Linha 2027 v1 (Metais Zeta)" });
+  await page.getByRole("button", { name: "Cadastrar produto" }).click();
+  await expect(page.getByText("Produto cadastrado.")).toBeVisible();
+  const prod = page.getByRole("row").filter({ hasText: "PRF-10" });
+  await expect(prod).toContainText("R$ 1.234,50");
+  await expect(prod).toContainText("Linha 2027 v1");
+  await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Metais Zeta" });
+  await page.getByLabel("SKU").fill("PRF-10");
+  await page.getByLabel("Nome do produto").fill("Duplicado");
+  await page.getByRole("button", { name: "Cadastrar produto" }).click();
+  await expect(page.getByText("Já existe um produto com este SKU nesta indústria.")).toBeVisible();
 });

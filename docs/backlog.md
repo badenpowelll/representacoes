@@ -35,7 +35,8 @@ Interface:
 - ⏳ Códigos de recuperação de MFA próprios (hoje a recuperação é pelo suporte da plataforma)
 - ⏳ Extração de texto do PDF (fila assíncrona; conteúdo tratado como não confiável), novas versões e publicação
 - ✅ Contatos das empresas: base legal, consentimento com data, oposição (vai para a supressão) e exclusão a pedido
-- ⏳ Produtos (cadastro/importação), prospecção manual com fonte
+- ✅ Produtos: cadastro com SKU único por indústria, preço autorizado com vigência e vínculo à versão do catálogo
+- ⏳ Importação de produtos em lote (planilha), prospecção manual com fonte
 - ✅ Municípios do IBGE: snapshot CSV versionado com data e sha256, migration gerada por script
 - ✅ Workflow manual de E2E (`workflow_dispatch`), ainda não disparado
 - ⏳ E2E automático em cada PR (decisão do proprietário: minutos do Actions)

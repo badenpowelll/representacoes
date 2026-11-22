@@ -127,3 +127,35 @@ export const contactSchema = z
     path: ["consent"],
     message: "Confirme que o contato deu consentimento",
   });
+
+/** Valor monetário em formato brasileiro ("1.234,56"), opcional. */
+export const optionalBrl = z
+  .string()
+  .nullish()
+  .transform((v) => (v == null || v.trim() === "" ? null : v.trim()))
+  .refine((v) => v == null || /^\d{1,3}(\.?\d{3})*(,\d{1,2})?$/.test(v), { message: "Valor inválido (ex.: 1.234,56)" })
+  .transform((v) => (v == null ? null : Number(v.replace(/\./g, "").replace(",", "."))));
+
+/** Produto: preço somente quando autorizado pela indústria (o agente nunca inventa preço). */
+export const productSchema = z
+  .object({
+    industry_id: z.uuid("Selecione a indústria"),
+    sku: z.string().trim().min(1, "Informe o SKU").max(100),
+    name: z.string().trim().min(1, "Informe o nome").max(300),
+    category: optionalText(120),
+    catalog_version_id: z
+      .string()
+      .nullish()
+      .transform((v) => (v ? v : null))
+      .pipe(z.uuid("Versão inválida").nullable()),
+    authorized_price: optionalBrl,
+    price_valid_until: z
+      .string()
+      .nullish()
+      .transform((v) => (v ? v : null))
+      .refine((v) => v == null || /^\d{4}-\d{2}-\d{2}$/.test(v), { message: "Data inválida" }),
+  })
+  .refine((p) => p.price_valid_until == null || p.authorized_price != null, {
+    path: ["price_valid_until"],
+    message: "Informe o preço autorizado para definir a vigência",
+  });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatCnpj, isValidCnpj } from "./cnpj";
-import { companySchema, dealSchema, industrySchema, moveDealSchema, optionalMunicipality, contactSchema } from "./schemas";
+import { companySchema, dealSchema, industrySchema, moveDealSchema, optionalMunicipality, contactSchema, productSchema } from "./schemas";
 
 describe("CNPJ", () => {
   it("valida dígitos verificadores", () => {
@@ -66,5 +66,19 @@ describe("contato (LGPD)", () => {
     expect(contactSchema.safeParse({ ...base, email: "x@" }).success).toBe(false);
     expect(contactSchema.safeParse({ ...base, phone: "abc" }).success).toBe(false);
     expect(contactSchema.parse({ ...base, email: "", phone: "(84) 99999-0000" }).email).toBeNull();
+  });
+});
+
+describe("produto", () => {
+  const base = { industry_id: "6f1c1e0a-3b7a-4c55-9d43-6f0b8f2d9a11", sku: "CIM-50", name: "Cimento 50 kg" };
+  it("preço é opcional e aceita formato brasileiro", () => {
+    expect(productSchema.parse(base).authorized_price).toBeNull();
+    expect(productSchema.parse({ ...base, authorized_price: "1.234,56" }).authorized_price).toBe(1234.56);
+    expect(productSchema.parse({ ...base, authorized_price: "39,9" }).authorized_price).toBe(39.9);
+  });
+  it("rejeita preço malformado e vigência sem preço", () => {
+    expect(productSchema.safeParse({ ...base, authorized_price: "12.34.5" }).success).toBe(false);
+    expect(productSchema.safeParse({ ...base, authorized_price: "-3" }).success).toBe(false);
+    expect(productSchema.safeParse({ ...base, price_valid_until: "2027-01-31" }).success).toBe(false);
   });
 });
