@@ -40,10 +40,10 @@ export async function createTestDatabase(): Promise<{ pool: Pool; drop: () => Pr
   };
 }
 
-export async function createUser(pool: Pool, email: string): Promise<string> {
+export async function createUser(pool: Pool, email: string, opts: { confirmed?: boolean } = {}): Promise<string> {
   const { rows } = await pool.query<{ id: string }>(
-    "insert into auth.users (email, raw_user_meta_data) values ($1, $2) returning id",
-    [email, JSON.stringify({ full_name: email.split("@")[0] })],
+    "insert into auth.users (email, raw_user_meta_data, email_confirmed_at) values ($1, $2, $3) returning id",
+    [email, JSON.stringify({ full_name: email.split("@")[0] }), opts.confirmed === false ? null : new Date()],
   );
   return rows[0].id;
 }
