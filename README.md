@@ -2,7 +2,7 @@
 
 SaaS B2B multi-tenant de inteligência comercial para empresas de representação: catálogos, prospecção, CRM, funil de vendas e (futuramente) campanhas por Gmail com agente de IA. A especificação completa está em [`CLAUDE.md`](CLAUDE.md).
 
-> **Status:** Fase 0 (fundação) em andamento. Não há ambiente de staging ou produção. Nenhum envio real de e-mail.
+> **Status:** Fase 0 concluída e Fase 1 em andamento (banco completo da Fase 1; telas de autenticação, onboarding, painel, indústrias, empresas e funil). Não há ambiente de staging ou produção. Nenhum envio real de e-mail.
 
 ## Stack
 
@@ -33,9 +33,12 @@ npx supabase db reset   # aplica supabase/migrations e supabase/seed.sql
 ```bash
 pnpm lint
 pnpm typecheck
-pnpm test        # unitários + banco
+pnpm test        # unitários + banco (+ integração, se configurada)
 pnpm build
+pnpm test:e2e    # Playwright; requer `npx supabase start` e .env.local apontando para ele
 ```
+
+Testes de integração (`tests/integration`) rodam contra a stack Supabase **local** quando `SUPABASE_TEST_URL` (só `localhost`/`127.0.0.1`), `SUPABASE_TEST_ANON_KEY` e `SUPABASE_TEST_SERVICE_ROLE_KEY` estão definidas (valores impressos por `npx supabase status`); caso contrário são pulados. O e2e lê o e-mail de confirmação no Mailpit local (`http://127.0.0.1:54324`).
 
 Os testes de banco (`tests/db`) precisam apenas de um PostgreSQL 16 acessível em `TEST_DATABASE_ADMIN_URL` (padrão `postgres://postgres:postgres@localhost:5432/postgres`). Cada arquivo cria um banco descartável, aplica `supabase/tests/supabase_stub.sql` (papéis `anon`/`authenticated`/`service_role` e `auth.uid()`) e todas as migrations, e executa as consultas com o papel `authenticated` e claims de JWT simuladas, como o PostgREST faz. Veja a [ADR 0003](docs/adr/0003-testes-de-banco.md).
 
@@ -59,6 +62,8 @@ docs/               arquitetura, ADRs e backlog
 
 ## Limitações atuais
 
-- Telas de login, onboarding e módulos da Fase 1 ainda não implementados.
-- Políticas de Storage, Gmail e agente de IA ainda não existem.
+- Telas ainda não implementadas: convites, contexto comercial, territórios, catálogos (upload), contatos, compatibilidade e prospecção. O banco e as políticas desses módulos já existem e estão testados.
+- MFA obrigatório para administradores ainda não é exigido na interface (TOTP habilitado no `config.toml`).
+- Municípios do IBGE ainda não carregados (apenas as 27 UFs).
+- Gmail, campanhas e agente de IA são Fases 2 e 3.
 - Validação contra um projeto Supabase real depende da criação de staging (decisão do proprietário).

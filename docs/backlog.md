@@ -13,18 +13,26 @@ Legenda: ✅ feito · 🔄 em andamento · ⏳ pendente · ⛔ bloqueado (decis�
 - ⛔ Projetos Supabase de staging/prod e secrets do CI para deploy
 
 ## Fase 1 — Produto base
-- ⏳ Login, cadastro com verificação de e-mail, recuperação de senha, MFA obrigatório para administradores
-- ⏳ Onboarding: criar representação, convidar colaboradores, aceitar convite
-- ⏳ Contexto comercial (segmentos, CNAEs, ICP, diferenciais, restrições, tom, metas)
-- ⏳ Indústrias representadas e acordos de representação
-- ⏳ Territórios (UFs e municípios como dados de referência globais; cobertura por tenant)
-- ⏳ Catálogos e produtos (Storage privado com políticas por tenant, versões, SKU, preços autorizados)
-- ⏳ CRM: empresas, contatos, consentimentos e lista de supressão
-- ⏳ Motor de compatibilidade com score explicável
-- ⏳ Prospecção manual com registro de fonte e data
-- ⏳ Funil Kanban (deals, atividades, motivos de perda)
-- ⏳ Dashboard básico
-- ⏳ Testes e2e (Playwright)
+Banco (migrations + RLS + testes):
+- ✅ Contexto comercial, indústrias, contatos da indústria, acordos de representação
+- ✅ Territórios (UFs globais; cobertura por indústria/UF/município/representante)
+- ✅ CRM: empresas, contatos, base legal LGPD, opt-out e lista de supressão
+- ✅ Catálogos, versões, produtos com preço autorizado; Storage privado por prefixo de tenant
+- ✅ Leads com fonte obrigatória, motor de compatibilidade explicável com revisão humana, funil e atividades
+- ✅ Validação real no Supabase local (Auth, PostgREST, Storage)
+
+Interface:
+- ✅ Login, cadastro com confirmação de e-mail, recuperação e redefinição de senha
+- ✅ Onboarding (criar representação), lista de representações
+- ✅ Painel básico (indústrias, clientes, prospects, leads, vendas ganhas, negócios por etapa)
+- ✅ Indústrias, empresas e funil Kanban (criar e mover negócios, motivo de perda)
+- ✅ E2E Playwright do fluxo principal, incluindo acesso negado entre representações
+- ⏳ Convites (telas de convidar/aceitar; RPCs já existem)
+- ⏳ MFA obrigatório para administradores na interface
+- ⏳ Contexto comercial, territórios, catálogos (upload + extração de PDF), contatos
+- ⏳ Tela de compatibilidade (revisar matches) e prospecção manual
+- ⏳ Carga dos 5.570 municípios do IBGE
+- ⏳ E2E no CI (precisa da stack Supabase via Docker no runner; avaliar tempo/custo de minutos)
 
 ## Pendências e riscos
 - Validar migrations em um Supabase real (staging) — depende de ⛔.
