@@ -227,6 +227,14 @@ test("contexto comercial e territórios", async ({ browser }) => {
   await page.getByLabel("UF", { exact: true }).selectOption("RN");
   await page.getByRole("button", { name: "Adicionar cobertura" }).click();
   await expect(page.getByText("Esta cobertura já está cadastrada.")).toBeVisible();
+
+  // Cobertura por município (referência do IBGE)
+  await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Tintas Delta" });
+  await page.getByLabel("UF", { exact: true }).selectOption("RN");
+  await page.getByLabel("Município").selectOption({ label: "Mossoró" });
+  await page.getByRole("button", { name: "Adicionar cobertura" }).click();
+  await expect(page.getByText("Cobertura adicionada.")).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Mossoró" })).toBeVisible();
 });
 
 test("compatibilidade: calcula score explicável e aprovação gera lead", async ({ browser }) => {

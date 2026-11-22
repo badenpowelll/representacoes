@@ -5,11 +5,12 @@ import { type ActionState, dbErrorMessage, withValues, zodFieldErrors } from "@/
 import { can } from "@/lib/auth/permissions";
 import { AuthorizationError, requireTenantContext } from "@/lib/auth/tenant-context";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { UF_CODES, formToObject } from "@/lib/validation/schemas";
+import { UF_CODES, formToObject, optionalMunicipality } from "@/lib/validation/schemas";
 
 const territorySchema = z.object({
   industry_id: z.uuid("Selecione a indústria"),
   state_code: z.enum(UF_CODES, { message: "Selecione a UF" }),
+  municipality_id: optionalMunicipality,
   membership_id: z
     .string()
     .transform((v) => v || null)
@@ -27,7 +28,9 @@ export async function addTerritory(_: ActionState, form: FormData): Promise<Acti
     const { error } = await supabase.from("territories").insert({ ...parsed.data, tenant_id: ctx.tenantId });
     if (error) {
       return withValues(
-        { message: error.code === "23505" ? "Esta cobertura já está cadastrada." : dbErrorMessage(error) },
+        error.code === "23514" && /munic/i.test(error.message ?? "")
+          ? { fieldErrors: { municipality_id: "O município não pertence à UF escolhida." } }
+          : { message: error.code === "23505" ? "Esta cobertura já está cadastrada." : dbErrorMessage(error) },
         form,
       );
     }

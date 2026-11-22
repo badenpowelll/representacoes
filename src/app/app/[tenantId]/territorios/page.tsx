@@ -15,7 +15,7 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
   const [territories, industries, states, members] = await Promise.all([
     supabase
       .from("territories")
-      .select("id, state_code, exclusive, industries(name), memberships(profiles:user_id(full_name, email))")
+      .select("id, state_code, municipality_id, exclusive, industries(name), memberships(profiles:user_id(full_name, email))")
       .eq("tenant_id", tenantId)
       .order("state_code"),
     supabase.from("industries").select("id, name").eq("tenant_id", tenantId).eq("active", true).order("name"),
@@ -28,8 +28,13 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
       .in("role", ["representative", "manager", "tenant_admin"]),
   ]);
   type Profile = { full_name: string | null; email: string | null } | null;
-  type Row = { id: string; state_code: string; exclusive: boolean; industries: { name: string } | null; memberships: { profiles: Profile } | null };
+  type Row = { id: string; state_code: string; municipality_id: number | null; exclusive: boolean; industries: { name: string } | null; memberships: { profiles: Profile } | null };
   const rows = (territories.data ?? []) as unknown as Row[];
+  const municipioIds = [...new Set(rows.map((r) => r.municipality_id).filter((v): v is number => v != null))];
+  const { data: municipios } = municipioIds.length
+    ? await supabase.from("ref_municipalities").select("ibge_code, name").in("ibge_code", municipioIds)
+    : { data: [] as { ibge_code: number; name: string }[] };
+  const municipioName = new Map((municipios ?? []).map((m) => [m.ibge_code, m.name]));
   const reps = ((members.data ?? []) as unknown as { id: string; profiles: Profile }[]).map((m) => ({
     id: m.id,
     label: m.profiles?.full_name ?? m.profiles?.email ?? "Membro",
@@ -59,6 +64,7 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
             <thead>
               <tr className="border-b">
                 <th className="py-2 pr-4">UF</th>
+                <th className="py-2 pr-4">Município</th>
                 <th className="py-2 pr-4">Indústria</th>
                 <th className="py-2 pr-4">Responsável</th>
                 <th className="py-2 pr-4">Exclusivo</th>
@@ -69,6 +75,7 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
               {rows.map((t) => (
                 <tr key={t.id} className="border-b">
                   <td className="py-2 pr-4 font-medium">{t.state_code}</td>
+                  <td className="py-2 pr-4">{t.municipality_id ? (municipioName.get(t.municipality_id) ?? t.municipality_id) : "Toda a UF"}</td>
                   <td className="py-2 pr-4">{t.industries?.name}</td>
                   <td className="py-2 pr-4">{t.memberships?.profiles?.full_name ?? t.memberships?.profiles?.email ?? "Toda a equipe"}</td>
                   <td className="py-2 pr-4">{t.exclusive ? "Sim" : "Não"}</td>

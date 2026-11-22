@@ -3,6 +3,7 @@ import { useActionState, useState } from "react";
 import { initialState } from "@/lib/action-state";
 import { Alert, Field } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
+import { UfMunicipioFields } from "@/components/uf-municipio";
 import { DEAL_STAGES, DEAL_STAGE_LABELS, UF_CODES, type DealStage } from "@/lib/validation/schemas";
 import { createCompany, createDeal, createIndustry, moveDeal } from "./actions";
 
@@ -52,17 +53,9 @@ export function CompanyForm({ tenantId }: { tenantId: string }) {
         defaultValue={state.values?.cnae} inputMode="numeric" hint="7 dígitos, sem pontuação" error={state.fieldErrors?.cnae} />
       <Field label="Segmento" name="segment"
         defaultValue={state.values?.segment} error={state.fieldErrors?.segment} />
-      <div className="flex flex-col gap-1">
-        <label htmlFor="state_code" className="text-sm font-medium">
-          UF
-        </label>
-        <select id="state_code" name="state_code" className={selectClass} defaultValue={state.values?.state_code ?? ""}>
-          <option value="">Selecione</option>
-          {UF_CODES.map((uf) => (
-            <option key={uf}>{uf}</option>
-          ))}
-        </select>
-      </div>
+      <UfMunicipioFields states={UF_CODES.map((code) => ({ code }))} defaultUf={state.values?.state_code}
+        defaultMunicipio={state.values?.municipality_id} municipioEmptyLabel="Não informado"
+        municipioError={state.fieldErrors?.municipality_id} />
       <div className="flex flex-col gap-1">
         <label htmlFor="kind" className="text-sm font-medium">
           Tipo

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatCnpj, isValidCnpj } from "./cnpj";
-import { companySchema, dealSchema, industrySchema, moveDealSchema } from "./schemas";
+import { companySchema, dealSchema, industrySchema, moveDealSchema, optionalMunicipality } from "./schemas";
 
 describe("CNPJ", () => {
   it("valida dígitos verificadores", () => {
@@ -35,5 +35,17 @@ describe("schemas", () => {
     const id = "6f1c1e0a-3b7a-4c55-9d43-6f0b8f2d9a11";
     expect(moveDealSchema.safeParse({ deal_id: id, stage: "lost", lost_reason: "" }).success).toBe(false);
     expect(moveDealSchema.safeParse({ deal_id: id, stage: "lost", lost_reason: "preço" }).success).toBe(true);
+  });
+});
+
+describe("município opcional", () => {
+  it("vazio vira null e código válido vira número", () => {
+    expect(optionalMunicipality.parse("")).toBeNull();
+    expect(optionalMunicipality.parse(undefined)).toBeNull();
+    expect(optionalMunicipality.parse("2408102")).toBe(2408102);
+  });
+  it("rejeita código fora do formato IBGE", () => {
+    expect(optionalMunicipality.safeParse("123").success).toBe(false);
+    expect(optionalMunicipality.safeParse("24081O2").success).toBe(false);
   });
 });

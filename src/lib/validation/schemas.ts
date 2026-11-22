@@ -42,12 +42,21 @@ export const industrySchema = z.object({
   }),
 });
 
+/** Código IBGE de município (7 dígitos) opcional, vindo de um <select>. */
+export const optionalMunicipality = z
+  .string()
+  .nullish()
+  .transform((v) => (v == null || v === "" ? null : v))
+  .refine((v) => v == null || /^\d{7}$/.test(v), { message: "Município inválido" })
+  .transform((v) => (v == null ? null : Number(v)));
+
 export const companySchema = z.object({
   legal_name: z.string().trim().min(2, "Informe a razão social").max(300),
   cnpj: optionalCnpj,
   cnae: optionalText(7).refine((v) => v == null || /^\d{7}$/.test(v), { message: "CNAE deve ter 7 dígitos" }),
   segment: optionalText(120),
   state_code: z.enum(UF_CODES).nullable().optional(),
+  municipality_id: optionalMunicipality,
   kind: z.enum(["customer", "prospect"]).default("prospect"),
   source: z.string().trim().min(2, "Informe a origem do dado (LGPD)").max(300),
 });

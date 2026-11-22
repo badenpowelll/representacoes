@@ -11,9 +11,7 @@ const one = async <T = Record<string, unknown>>(p: Promise<{ rows: T[] }>) => (a
 
 beforeAll(async () => {
   ({ pool, drop } = await createTestDatabase());
-  await pool.query(
-    "insert into ref.municipalities (ibge_code, state_code, name) values (2408102, 'RN', 'Natal'), (2408003, 'RN', 'Mossoró'), (2304400, 'CE', 'Fortaleza')",
-  );
+  // Natal, Mossoró e Fortaleza vêm da migration de municípios do IBGE.
   alfaAdmin = await createUser(pool, "admin@alfa.test");
   alfaRep = await createUser(pool, "rep@alfa.test");
   alfaViewer = await createUser(pool, "leitura@alfa.test");

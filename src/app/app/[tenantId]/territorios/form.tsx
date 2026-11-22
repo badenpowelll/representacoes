@@ -2,6 +2,7 @@
 import { useActionState } from "react";
 import { Alert } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
+import { UfMunicipioFields } from "@/components/uf-municipio";
 import { initialState } from "@/lib/action-state";
 import { addTerritory } from "./actions";
 
@@ -21,9 +22,9 @@ export function TerritoryForm({
   const [state, action] = useActionState(addTerritory, initialState);
   const v = state.values ?? {};
   return (
-    <form key={state.nonce} action={action} className="grid gap-4 sm:grid-cols-5" noValidate>
+    <form key={state.nonce} action={action} className="grid gap-4 sm:grid-cols-3" noValidate>
       <input type="hidden" name="tenant_id" value={tenantId} />
-      <div className="sm:col-span-5">{state.message && <Alert kind={state.ok ? "success" : "error"}>{state.message}</Alert>}</div>
+      <div className="sm:col-span-3">{state.message && <Alert kind={state.ok ? "success" : "error"}>{state.message}</Alert>}</div>
       <div className="flex flex-col gap-1">
         <label htmlFor="industry_id" className="text-sm font-medium">
           Indústria
@@ -38,20 +39,9 @@ export function TerritoryForm({
         </select>
         {state.fieldErrors?.industry_id && <p className="text-sm text-red-600">{state.fieldErrors.industry_id}</p>}
       </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor="state_code" className="text-sm font-medium">
-          UF
-        </label>
-        <select id="state_code" name="state_code" className={sel} defaultValue={v.state_code ?? ""}>
-          <option value="">Selecione</option>
-          {states.map((s) => (
-            <option key={s.code} value={s.code}>
-              {s.code} · {s.name}
-            </option>
-          ))}
-        </select>
-        {state.fieldErrors?.state_code && <p className="text-sm text-red-600">{state.fieldErrors.state_code}</p>}
-      </div>
+      <UfMunicipioFields states={states} defaultUf={v.state_code} defaultMunicipio={v.municipality_id}
+        ufError={state.fieldErrors?.state_code} municipioError={state.fieldErrors?.municipality_id}
+        municipioEmptyLabel="Toda a UF" />
       <div className="flex flex-col gap-1">
         <label htmlFor="membership_id" className="text-sm font-medium">
           Responsável
