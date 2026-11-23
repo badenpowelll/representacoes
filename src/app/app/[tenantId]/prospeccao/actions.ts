@@ -135,15 +135,28 @@ export async function addToPortfolio(_: ActionState, form: FormData): Promise<Ac
   try {
     const ctx = await requireTenantContext(String(form.get("tenant_id") ?? ""));
     if (!can(ctx.role, "crm.write")) return { message: "Você não tem permissão para adicionar empresas." };
-    const industry = z.uuid().safeParse(form.get("industry_id"));
+    const rawIndustry = String(form.get("industry_id") ?? "");
+    const mix = rawIndustry === "todas";
+    const industry = z.uuid().safeParse(rawIndustry);
     const cnpjs = [...new Set(form.getAll("cnpj").map(String))].filter((c) => CNPJ_RE.test(c));
-    if (!industry.success || cnpjs.length === 0) return { message: "Marque ao menos uma empresa." };
+    if ((!mix && !industry.success) || cnpjs.length === 0) return { message: "Marque ao menos uma empresa." };
     if (cnpjs.length > 200) return { message: "Adicione no máximo 200 empresas por vez." };
     const supabase = await createSupabaseServerClient();
     let created = 0;
     let existing = 0;
     let failed = 0;
+    let leads = 0;
     for (const cnpj of cnpjs) {
+      if (mix) {
+        const { data, error } = await supabase.rpc("prospect_add_mix", { p_tenant: ctx.tenantId, p_cnpj: cnpj });
+        const n = (data as { leads_created?: number } | null)?.leads_created ?? 0;
+        if (error) failed++;
+        else if (n > 0) {
+          created++;
+          leads += n;
+        } else existing++;
+        continue;
+      }
       const { data, error } = await supabase.rpc("prospect_add", { p_tenant: ctx.tenantId, p_industry: industry.data, p_cnpj: cnpj });
       if (error) failed++;
       else if ((data as { lead_created?: boolean }).lead_created) created++;
@@ -151,7 +164,7 @@ export async function addToPortfolio(_: ActionState, form: FormData): Promise<Ac
     }
     revalidatePath(path(ctx.tenantId));
     revalidatePath(`/app/${ctx.tenantId}/leads`);
-    const parts = [`${created} adicionada(s) à carteira`];
+    const parts = [mix ? `${created} adicionada(s) à carteira (${leads} vínculo(s) com indústrias)` : `${created} adicionada(s) à carteira`];
     if (existing) parts.push(`${existing} já estava(m)`);
     if (failed) parts.push(`${failed} não puderam ser adicionadas`);
     return { ok: failed === 0, nonce: Date.now(), message: parts.join(", ") + "." };
@@ -162,7 +175,8 @@ export async function addToPortfolio(_: ActionState, form: FormData): Promise<Ac
 
 const outreachSchema = z.object({
   tenantId: z.uuid(),
-  industryId: z.uuid(),
+  /** Ausente = todas as indústrias compatíveis (mix). */
+  industryId: z.uuid().optional(),
   cnpj: z.string().regex(CNPJ_RE),
   channel: z.enum(["email", "whatsapp"]),
   to: z.string().trim().min(1, "Informe o destinatário").max(254),
@@ -203,13 +217,13 @@ export async function prepareOutreach(input: z.input<typeof outreachSchema>): Pr
     const changed = to !== original;
 
     const supabase = await createSupabaseServerClient();
-    const { data: added, error: addError } = await supabase.rpc("prospect_add", {
-      p_tenant: ctx.tenantId,
-      p_industry: d.industryId,
-      p_cnpj: d.cnpj,
+    const overrides = {
       p_email: d.channel === "email" && changed ? to : null,
       p_phone: d.channel === "whatsapp" && changed ? to : null,
-    });
+    };
+    const { data: added, error: addError } = d.industryId
+      ? await supabase.rpc("prospect_add", { p_tenant: ctx.tenantId, p_industry: d.industryId, p_cnpj: d.cnpj, ...overrides })
+      : await supabase.rpc("prospect_add_mix", { p_tenant: ctx.tenantId, p_cnpj: d.cnpj, ...overrides });
     if (addError) return { ok: false, message: dbErrorMessage(addError) };
     const r = added as { company_id: string; contact_id: string | null };
     if (!r.contact_id) return { ok: false, message: "Não foi possível registrar o contato desta empresa." };
@@ -237,7 +251,7 @@ export async function prepareOutreach(input: z.input<typeof outreachSchema>): Pr
       subject: d.channel === "email" ? (d.subject ?? "E-mail") : "Mensagem de WhatsApp",
       body,
       done_at: new Date().toISOString(),
-      metadata: { channel: d.channel, mode: "manual_link", industry_id: d.industryId, contact_id: r.contact_id },
+      metadata: { channel: d.channel, mode: "manual_link", industry_id: d.industryId ?? null, mix: !d.industryId, contact_id: r.contact_id },
     });
     if (actError) return { ok: false, message: "Não foi possível registrar o contato no histórico." };
     revalidatePath(path(ctx.tenantId));

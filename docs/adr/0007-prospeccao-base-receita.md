@@ -59,3 +59,11 @@ validar o texto da justificativa com o jurídico antes do uso em escala.
   mensagem) ficam para decisão própria; esta etapa não envia nada sozinha.
 - Municípios cujo nome na Receita difere do IBGE ficam sem código IBGE e só aparecem para
   territórios de estado inteiro; o importador informa quantos.
+
+## Adendo: mix de indústrias por cliente
+
+Um mesmo cliente pode comprar de várias indústrias representadas. O vínculo continua sendo o lead (único por empresa × indústria).
+`prospect_search_mix` lista cada estabelecimento uma vez com todas as indústrias compatíveis (CNAE-alvo + território);
+`prospect_add_mix` cria um lead por indústria compatível com uma única empresa e contato; `company_industry_fit` mostra na ficha
+do cliente o encaixe com cada indústria e permite vincular as que faltam. A Compatibilidade calcula todas as indústrias de uma vez
+e agrupa os resultados por cliente.

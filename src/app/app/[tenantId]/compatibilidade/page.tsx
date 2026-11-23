@@ -2,7 +2,8 @@ import { requireTenantPage } from "@/lib/auth/session";
 import { can } from "@/lib/auth/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Alert, EmptyState } from "@/components/ui";
-import { recompute, review } from "./actions";
+import Link from "next/link";
+import { recompute, recomputeAll, review } from "./actions";
 
 export const metadata = { title: "Compatibilidade · Rep360" };
 
@@ -21,7 +22,25 @@ export default async function Page({
   const writable = can(ctx.role, "deals.write");
   const supabase = await createSupabaseServerClient();
   const { data: industries } = await supabase.from("industries").select("id, name").eq("tenant_id", tenantId).eq("active", true).order("name");
-  const selected = industries?.find((i) => i.id === industria) ?? industries?.[0];
+  const byCustomer = industria === "clientes";
+  const selected = byCustomer ? undefined : (industries?.find((i) => i.id === industria) ?? industries?.[0]);
+  type MixRow = { company_id: string; score: number; review: keyof typeof REVIEW_LABEL; industries: { name: string } | null; companies: { legal_name: string; state_code: string | null } | null };
+  const { data: mixData, error: mixError } = byCustomer
+    ? await supabase
+        .from("matches")
+        .select("company_id, score, review, industries(name), companies(legal_name, state_code)")
+        .eq("tenant_id", tenantId)
+        .neq("review", "rejected")
+        .order("score", { ascending: false })
+        .limit(2000)
+    : { data: [], error: null };
+  const customers = new Map<string, { name: string; uf: string | null; items: { industry: string; score: number; review: keyof typeof REVIEW_LABEL }[] }>();
+  for (const m of (mixData ?? []) as unknown as MixRow[]) {
+    const c = customers.get(m.company_id) ?? { name: m.companies?.legal_name ?? "—", uf: m.companies?.state_code ?? null, items: [] };
+    c.items.push({ industry: m.industries?.name ?? "—", score: m.score, review: m.review });
+    customers.set(m.company_id, c);
+  }
+  const customerList = [...customers.entries()].sort((a, b) => b[1].items.length - a[1].items.length || a[1].name.localeCompare(b[1].name));
   const { data: matches, error } = selected
     ? await supabase
         .from("matches")
@@ -51,7 +70,8 @@ export default async function Page({
               <label htmlFor="industria" className="text-sm font-medium">
                 Indústria
               </label>
-              <select id="industria" name="industria" defaultValue={selected?.id} className="rounded-md border px-3 py-2">
+              <select id="industria" name="industria" defaultValue={byCustomer ? "clientes" : selected?.id} className="rounded-md border px-3 py-2">
+                <option value="clientes">Por cliente (todas as indústrias)</option>
                 {industries.map((i) => (
                   <option key={i.id} value={i.id}>
                     {i.name}
@@ -68,7 +88,37 @@ export default async function Page({
               <button className="rounded-md bg-blue-700 px-4 py-2 font-medium text-white">Calcular compatibilidade</button>
             </form>
           )}
+          {writable && (
+            <form action={recomputeAll}>
+              <input type="hidden" name="tenant_id" value={tenantId} />
+              <button className="rounded-md border px-4 py-2 font-medium">Calcular todas as indústrias</button>
+            </form>
+          )}
         </div>
+      )}
+      {byCustomer && (
+        <section aria-labelledby="por-cliente" className="flex flex-col gap-3">
+          <h2 id="por-cliente" className="font-medium">Indústrias que podem vender para cada cliente</h2>
+          {mixError && <Alert kind="error">Não foi possível carregar os resultados.</Alert>}
+          {!mixError && customerList.length === 0 && <EmptyState title="Nenhum resultado ainda. Clique em Calcular todas as indústrias." />}
+          <ul className="flex flex-col gap-3">
+            {customerList.map(([id, c]) => (
+              <li key={id} className="rounded-lg border p-4">
+                <p className="font-medium">
+                  <Link href={`/app/${tenantId}/empresas/${id}`} className="underline">{c.name}</Link>{" "}
+                  <span className="text-sm text-neutral-500">{c.uf}</span> · {c.items.length} indústria(s)
+                </p>
+                <ul className="mt-2 flex flex-wrap gap-2 text-sm">
+                  {c.items.map((it) => (
+                    <li key={it.industry} className="rounded-full border px-3 py-1">
+                      {it.industry} · {it.score}/100 · {REVIEW_LABEL[it.review]}
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
       {error && <Alert kind="error">Não foi possível carregar os resultados.</Alert>}
       {selected && rows.length === 0 && !error && <EmptyState title="Nenhum resultado ainda. Clique em Calcular compatibilidade." />}

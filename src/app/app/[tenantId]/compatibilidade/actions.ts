@@ -15,6 +15,18 @@ export async function recompute(form: FormData) {
   revalidatePath(`/app/${ctx.tenantId}/compatibilidade`);
 }
 
+/** Calcula a compatibilidade de todas as indústrias ativas de uma vez (mix por cliente). */
+export async function recomputeAll(form: FormData) {
+  const ctx = await requireTenantContext(String(form.get("tenant_id") ?? ""));
+  if (!can(ctx.role, "deals.write")) return;
+  const supabase = await createSupabaseServerClient();
+  const { data: industries } = await supabase.from("industries").select("id").eq("tenant_id", ctx.tenantId).eq("active", true);
+  for (const i of industries ?? []) {
+    await supabase.rpc("compute_matches", { p_tenant: ctx.tenantId, p_industry: i.id });
+  }
+  revalidatePath(`/app/${ctx.tenantId}/compatibilidade`);
+}
+
 /** Revisão humana: aprovar cria o lead (com origem registrada); rejeitar só marca. */
 export async function review(form: FormData) {
   const ctx = await requireTenantContext(String(form.get("tenant_id") ?? ""));

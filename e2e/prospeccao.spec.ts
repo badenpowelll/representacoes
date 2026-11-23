@@ -142,5 +142,36 @@ test("prospecção: material hospitalar → tabela → carteira → WhatsApp e e
   await page.getByLabel("Mensagem", { exact: true }).last().fill("Olá {{empresa}}! Aqui é {{remetente}}. Posso mandar o catálogo?");
   await page.getByRole("button", { name: "Salvar modelo" }).last().click();
   await expect(page.getByText("Modelo de WhatsApp salvo.")).toBeVisible();
+
+  // Mix: uma segunda indústria (laboratório) também vende para a clínica.
+  const tenantId = new URL(page.url()).pathname.split("/")[2];
+  const db = new Client({ connectionString: DB_URL });
+  await db.connect();
+  const { rows } = await db.query(
+    "insert into public.industries (tenant_id, name, target_cnaes) values ($1, 'Laboratorio Exemplo', '{8630503}') returning id",
+    [tenantId],
+  );
+  await db.query("insert into public.territories (tenant_id, industry_id, state_code) values ($1, $2, 'RN')", [tenantId, rows[0].id]);
+  await db.end();
+  await page.goto(`/app/${tenantId}/prospeccao`);
+  await expect(page.getByRole("heading", { name: "Um cliente, várias indústrias" })).toBeVisible();
+  const clinicMix = page.getByRole("row", { name: /CLINICA EXEMPLO MOSSORO/ });
+  await expect(clinicMix.getByText("✓ Hospitalar Exemplo")).toBeVisible();
+  await expect(clinicMix.getByText("Laboratorio Exemplo", { exact: true })).toBeVisible();
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/prospeccao-mix.png`, fullPage: true });
+
+  // Ficha do cliente: vincular a indústria que faltava.
+  await clinicMix.getByRole("link", { name: "Editar dados" }).click();
+  const mix = page.getByRole("region", { name: "Indústrias para este cliente" });
+  await expect(mix.getByText("1 compatível(is) ainda não oferecida(s)", { exact: false })).toBeVisible();
+  await mix.getByRole("button", { name: "Vincular Laboratorio Exemplo" }).click();
+  await expect(mix.getByText("2 vinculada(s)", { exact: false })).toBeVisible();
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/ficha-mix.png`, fullPage: true });
+
+  // Compatibilidade: calcula todas e agrupa por cliente.
+  await page.goto(`/app/${tenantId}/compatibilidade?industria=clientes`);
+  await page.getByRole("button", { name: "Calcular todas as indústrias" }).click();
+  const porCliente = page.getByRole("region", { name: "Indústrias que podem vender para cada cliente" });
+  await expect(porCliente.getByRole("listitem").filter({ hasText: "CLINICA EXEMPLO MOSSORO" }).first()).toContainText("2 indústria(s)");
   await context.close();
 });

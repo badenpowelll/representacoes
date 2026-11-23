@@ -7,12 +7,13 @@ import { DEFAULT_TEMPLATES, type Channel } from "@/lib/prospeccao/messages";
 import { formatCnae } from "@/lib/prospeccao/presets";
 import { CnaeForm, StartIndustryForm, TemplateForm, VariablesHelp } from "./forms";
 import { ProspectTable, type ProspectRow } from "./table";
+import { MixView } from "./mix-view";
 
 export const metadata = { title: "Prospecção · Rep360" };
 
 const PAGE_SIZE = 50;
 
-type Search = {
+export type Search = {
   industria?: string;
   q?: string;
   municipio?: string;
@@ -66,6 +67,15 @@ export default async function Page({ params, searchParams }: { params: Promise<{
     );
   }
 
+  // Com mais de uma indústria, o padrão é a visão de mix (um cliente, várias indústrias).
+  const mixMode = sp.industria === "todas" || (!sp.industria && industries.length > 1);
+  if (mixMode) {
+    return (
+      <MixView tenantId={tenantId} sp={sp} header={header} industries={industries} imports={imports ?? []}
+        canWrite={canCrm} canIndustry={canIndustry}
+        baseVars={{ representacao: tenant?.name ?? "", remetente: profile?.full_name ?? "" }} />
+    );
+  }
   const industry = industries.find((i) => i.id === sp.industria) ?? industries[0];
   const cnaes = (industry.target_cnaes ?? []) as string[];
   const page = Math.max(1, Number.parseInt(sp.pagina ?? "1", 10) || 1);
@@ -121,6 +131,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
         <div className="flex flex-col gap-1">
           <label htmlFor="industria" className="text-sm font-medium">Indústria</label>
           <select id="industria" name="industria" defaultValue={industry.id} className={sel}>
+            {industries.length > 1 && <option value="todas">Todas as indústrias (mix por cliente)</option>}
             {industries.map((i) => (
               <option key={i.id} value={i.id}>{i.name}</option>
             ))}

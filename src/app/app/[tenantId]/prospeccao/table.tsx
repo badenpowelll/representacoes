@@ -23,7 +23,12 @@ export type ProspectRow = {
   phones: string[];
   email: string | null;
   company_id: string | null;
-  lead_id: string | null;
+  /** Modo de uma indústria: lead desta empresa com a indústria escolhida. */
+  lead_id?: string | null;
+  /** Modo "todas as indústrias": indústrias compatíveis e vínculos existentes. */
+  industries?: { id: string; name: string; lead_id: string | null }[];
+  industry_count?: number;
+  linked_count?: number;
   email_suppressed: boolean;
   phone_suppressed: boolean;
 };
@@ -34,6 +39,14 @@ type Draft = { row: ProspectRow; channel: Channel; to: string; originalTo: strin
 const SIZE: Record<string, string> = { "01": "ME", "03": "EPP", "05": "Demais" };
 const box = "w-full rounded-md border border-neutral-300 bg-transparent px-3 py-2 dark:border-neutral-700";
 
+/** "Balmak, Biobase e Fibra" */
+export function joinNames(names: string[]): string {
+  return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} e ${names.at(-1)}`;
+}
+
+const inPortfolio = (r: ProspectRow) => (r.industries ? (r.linked_count ?? 0) > 0 : Boolean(r.lead_id));
+const fullyLinked = (r: ProspectRow) => (r.industries ? (r.linked_count ?? 0) >= (r.industry_count ?? 0) : Boolean(r.lead_id));
+
 export function ProspectTable({
   tenantId,
   industryId,
@@ -43,10 +56,11 @@ export function ProspectTable({
   canWrite,
 }: {
   tenantId: string;
-  industryId: string;
+  /** null = todas as indústrias (mix). */
+  industryId: string | null;
   rows: ProspectRow[];
   templates: Templates;
-  baseVars: Pick<TemplateVars, "industria" | "representacao" | "remetente">;
+  baseVars: Pick<TemplateVars, "representacao" | "remetente"> & { industria?: string };
   canWrite: boolean;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -55,7 +69,7 @@ export function ProspectTable({
   const [result, setResult] = useState<{ ok: boolean; message: string; url?: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const selectable = rows.filter((r) => !r.lead_id);
+  const selectable = rows.filter((r) => !fullyLinked(r));
   const allSelected = selectable.length > 0 && selectable.every((r) => selected.has(r.cnpj));
   const toggle = (cnpj: string) =>
     setSelected((s) => {
@@ -68,6 +82,7 @@ export function ProspectTable({
   const open = (row: ProspectRow, channel: Channel) => {
     const vars: Partial<TemplateVars> = {
       ...baseVars,
+      industria: row.industries ? joinNames(row.industries.map((i) => i.name)) : baseVars.industria,
       empresa: row.trade_name || row.legal_name,
       nome_fantasia: row.trade_name ?? "",
       cidade: row.municipality_name ?? "",
@@ -91,7 +106,7 @@ export function ProspectTable({
     startTransition(async () => {
       const r = await prepareOutreach({
         tenantId,
-        industryId,
+        industryId: industryId ?? undefined,
         cnpj: draft.row.cnpj,
         channel: draft.channel,
         to: draft.to,
@@ -113,7 +128,7 @@ export function ProspectTable({
     <div className="flex flex-col gap-4">
       <form action={addAction} className="flex flex-col gap-3">
         <input type="hidden" name="tenant_id" value={tenantId} />
-        <input type="hidden" name="industry_id" value={industryId} />
+        <input type="hidden" name="industry_id" value={industryId ?? "todas"} />
         {[...selected].map((c) => (
           <input key={c} type="hidden" name="cnpj" value={c} />
         ))}
@@ -124,7 +139,11 @@ export function ProspectTable({
               className="rounded-md bg-blue-700 px-4 py-2 font-medium text-white hover:bg-blue-800 disabled:opacity-50">
               Adicionar {selected.size || ""} à carteira
             </button>
-            <span className="text-sm text-neutral-500">Cria empresa, lead e contato institucional, com fonte e base legal registradas.</span>
+            <span className="text-sm text-neutral-500">
+              {industryId
+                ? "Cria empresa, lead e contato institucional, com fonte e base legal registradas."
+                : "Cria a empresa e um lead para cada indústria compatível, com fonte e base legal registradas."}
+            </span>
           </div>
         )}
       </form>
@@ -141,6 +160,7 @@ export function ProspectTable({
                 </th>
               )}
               <th scope="col" className="px-3 py-2">Empresa</th>
+              {!industryId && <th scope="col" className="px-3 py-2">Indústrias que podem vender</th>}
               <th scope="col" className="px-3 py-2">Atividade (CNAE)</th>
               <th scope="col" className="px-3 py-2">Cidade</th>
               <th scope="col" className="px-3 py-2">Telefone</th>
@@ -153,7 +173,7 @@ export function ProspectTable({
               <tr key={r.cnpj} className="border-t align-top">
                 {canWrite && (
                   <td className="px-3 py-2">
-                    {!r.lead_id && (
+                    {!fullyLinked(r) && (
                       <input type="checkbox" aria-label={`Marcar ${r.legal_name}`} checked={selected.has(r.cnpj)} onChange={() => toggle(r.cnpj)} />
                     )}
                   </td>
@@ -166,12 +186,25 @@ export function ProspectTable({
                     {r.company_size && SIZE[r.company_size] ? ` · ${SIZE[r.company_size]}` : ""}
                     {r.opened_on ? ` · desde ${r.opened_on.slice(0, 4)}` : ""}
                   </p>
-                  {r.lead_id && (
+                  {inPortfolio(r) && (
                     <span className="mt-1 inline-block rounded bg-green-100 px-2 py-0.5 text-xs text-green-900 dark:bg-green-950 dark:text-green-100">
                       Na carteira
                     </span>
                   )}
                 </td>
+                {!industryId && (
+                  <td className="px-3 py-2">
+                    <ul className="flex flex-wrap gap-1">
+                      {r.industries?.map((i) => (
+                        <li key={i.id}
+                          className={`rounded px-2 py-0.5 text-xs ${i.lead_id ? "bg-green-100 text-green-900 dark:bg-green-950 dark:text-green-100" : "bg-neutral-100 dark:bg-neutral-800"}`}
+                          title={i.lead_id ? "Já vinculada a este cliente" : "Compatível, ainda não vinculada"}>
+                          {i.lead_id ? "✓ " : ""}{i.name}
+                        </li>
+                      ))}
+                    </ul>
+                  </td>
+                )}
                 <td className="px-3 py-2" title={r.main_cnae_description ?? undefined}>
                   <p>{formatCnae(r.main_cnae)}</p>
                   <p className="max-w-56 text-xs text-neutral-500">{r.main_cnae_description}</p>

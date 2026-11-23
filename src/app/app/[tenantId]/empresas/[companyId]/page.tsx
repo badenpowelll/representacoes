@@ -10,6 +10,7 @@ import { ContactForm, ContactRightsButtons } from "./contact-form";
 import { RefreshCnpjButton } from "./cnpj-section";
 import { fromRegistryRow, REGISTRY_COLUMNS, type RegistryRow } from "@/lib/cnpj/registry";
 import { ReceitaDetails } from "@/components/receita-details";
+import { IndustryMix } from "./industry-mix";
 
 export const metadata = { title: "Empresa · Rep360" };
 
@@ -73,6 +74,8 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
           <div><dt className="text-neutral-500">Origem do dado</dt><dd>{company.source ?? "—"}{company.source_date ? ` (${company.source_date})` : ""}</dd></div>
         </dl>
       </div>
+
+      <IndustryMix tenantId={tenantId} companyId={companyId} writable={writable} />
 
       {company.cnpj && (
         <section aria-labelledby="receita" className="flex flex-col gap-3 rounded-lg border p-4">
