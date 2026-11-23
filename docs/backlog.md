@@ -41,6 +41,9 @@ Interface:
 - ✅ Contatos das empresas: base legal, consentimento com data, oposição (vai para a supressão) e exclusão a pedido
 - ✅ Produtos: cadastro com SKU único por indústria, preço autorizado com vigência e vínculo à versão do catálogo
 - ✅ Prospecção manual: prospect + lead numa transação, fonte e data obrigatórias, CNPJ reaproveitado, lead levado ao funil
+- ✅ Prospecção automática por indústria (ADR 0007): base aberta do CNPJ da Receita (só ativos, recorte por território × CNAE), tabela com filtros, adicionar à carteira em lote, e-mail (mailto) e WhatsApp (wa.me) com texto editável e checagem de elegibilidade no servidor
+- ⏳ Primeira importação da base da Receita (segredo `REP360_DATABASE_URL` no GitHub — decisão do proprietário)
+- ⏳ Envio em massa: e-mail via Gmail OAuth (Fase 2) e WhatsApp Cloud API (custo por mensagem — decisão do proprietário)
 - ✅ Parecer 004-complemento (P1): abrangência territorial explícita; oposição e exclusão por RPC com auditoria; elegibilidade de contatos (`contact_eligibility`) e de produtos (`product_eligibility`) no servidor, fail-closed; base legal sem padrão, com finalidade, justificativa e evidência; preço com origem, referência, responsável, data e histórico
 - ⏳ P2 do parecer 004-complemento: verificação IBGE no CI, direitos do titular (exportação), retenção da supressão, centavos inteiros, paginação de produtos, erros em toggleProduct
 - ⏳ Importação de produtos em lote (planilha)
@@ -52,3 +55,9 @@ Interface:
 - Validar migrations em um Supabase real (staging) — depende de ⛔.
 - Codex no GitHub requer environment em chatgpt.com/codex — decisão do proprietário.
 - Base legal LGPD: finalidades por contato já existem (prospecção, relacionamento, catálogos, atendimento); política por canal além de e-mail ainda a definir com o proprietário antes de campanhas.
+
+## Envio de catálogo em lote (23/11/2026)
+- [x] Modo assistido (grátis): catálogo publicado → escolher clientes → fila com mensagem editável; um clique por cliente abre mailto:/wa.me com link assinado do PDF (7/30/90 dias); elegibilidade conferida ao montar e de novo a cada envio; atividade registrada (idempotente).
+- [ ] Envio automático por e-mail pela conta Google Workspace da representação (API do Gmail, app OAuth interno; sem custo extra, limites diários do Workspace).
+- [ ] Link curto rastreável do catálogo (exige chave de serviço só no servidor).
+- [ ] WhatsApp oficial (Cloud API da Meta, cobrança por mensagem) — depende de decisão do Baden.

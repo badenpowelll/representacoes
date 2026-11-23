@@ -92,3 +92,19 @@ export async function uploadCatalog(_: ActionState, form: FormData): Promise<Act
     throw e;
   }
 }
+
+/** Publica a versão (só administrador/gerente). Publicada, ela pode ser enviada a clientes e não volta a rascunho. */
+export async function publishCatalogVersion(form: FormData) {
+  const ctx = await requireTenantContext(String(form.get("tenant_id") ?? ""));
+  if (!can(ctx.role, "catalog.write")) return;
+  const version = z.uuid().safeParse(form.get("version_id"));
+  if (!version.success) return;
+  const supabase = await createSupabaseServerClient();
+  await supabase
+    .from("catalog_versions")
+    .update({ status: "published", published_at: new Date().toISOString() })
+    .eq("tenant_id", ctx.tenantId)
+    .eq("id", version.data)
+    .in("status", ["draft", "processing"]);
+  revalidatePath(`/app/${ctx.tenantId}/catalogos`);
+}

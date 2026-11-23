@@ -13,6 +13,7 @@ import { ReceitaDetails } from "@/components/receita-details";
 import { ContactInfoView } from "@/components/contact-info-view";
 import { ContactInfoForm } from "@/components/contact-info-form";
 import { parseChannels } from "@/lib/cnpj/contact-info";
+import { IndustryMix } from "./industry-mix";
 
 export const metadata = { title: "Empresa · Rep360" };
 
@@ -93,6 +94,8 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
         )}
         <p className="text-xs text-neutral-500">Atualizar os dados da Receita não apaga nem altera o que está aqui.</p>
       </section>
+
+      <IndustryMix tenantId={tenantId} companyId={companyId} writable={writable} />
 
       {company.cnpj && (
         <section aria-labelledby="receita" className="flex flex-col gap-3 rounded-lg border p-4">
