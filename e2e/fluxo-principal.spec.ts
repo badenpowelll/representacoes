@@ -152,9 +152,41 @@ test("cadastro, onboarding, CRM, funil e isolamento entre representações", asy
   await a.getByRole("button", { name: "Criar negócio" }).click();
   const novo = a.getByRole("region", { name: /Novo/ });
   await expect(novo.getByText("Pedido de cimento")).toBeVisible();
-  await novo.getByLabel("Mover para etapa").selectOption("won");
-  await novo.getByRole("button", { name: "Mover" }).click();
-  await expect(a.getByRole("region", { name: /Ganho/ }).getByText("Pedido de cimento")).toBeVisible();
+
+  // Arrastar o card para outra etapa
+  const moved = a.waitForResponse((r) => r.request().method() === "POST" && r.url().includes("/funil"));
+  await novo.getByText("Pedido de cimento").dragTo(a.getByRole("region", { name: /Negociação/ }));
+  expect((await moved).ok()).toBe(true);
+  await expect(a.getByRole("region", { name: /Negociação/ }).getByText("Pedido de cimento")).toBeVisible();
+  await a.reload();
+  await expect(a.getByRole("region", { name: /Negociação/ }).getByText("Pedido de cimento")).toBeVisible();
+
+  // Editar o card: título, valor e etapa; perda exige motivo
+  await a.getByRole("button", { name: "Editar Pedido de cimento" }).click();
+  const editar = a.getByRole("dialog", { name: "Editar negócio" });
+  await editar.getByLabel("Título").fill("Pedido de cimento CP-II");
+  await editar.getByLabel("Etapa").selectOption("lost");
+  await editar.getByRole("button", { name: "Salvar alterações" }).click();
+  await expect(editar.getByText("Informe o motivo da perda")).toBeVisible();
+  await editar.getByLabel("Etapa").selectOption("won");
+  await editar.getByRole("button", { name: "Salvar alterações" }).click();
+  await expect(a.getByText("Negócio atualizado.")).toBeVisible();
+  await expect(a.getByRole("region", { name: /Ganho/ }).getByText("Pedido de cimento CP-II")).toBeVisible();
+
+  // Excluir pede confirmação; cancelar mantém o card
+  await a.getByLabel("Título").fill("Negócio descartável");
+  await a.getByLabel("Empresa").selectOption({ label: "Loja de Materiais Natal" });
+  await a.getByRole("button", { name: "Criar negócio" }).click();
+  await expect(novo.getByText("Negócio descartável")).toBeVisible();
+  await a.getByRole("button", { name: "Excluir Negócio descartável" }).click();
+  const excluir = a.getByRole("dialog", { name: "Excluir negócio" });
+  await expect(excluir).toContainText("não pode ser desfeita");
+  await excluir.getByRole("button", { name: "Cancelar" }).click();
+  await expect(novo.getByText("Negócio descartável")).toBeVisible();
+  await a.getByRole("button", { name: "Excluir Negócio descartável" }).click();
+  await excluir.getByRole("button", { name: "Excluir negócio" }).click();
+  await expect(a.getByText("Negócio excluído.")).toBeVisible();
+  await expect(a.getByText("Negócio descartável")).toHaveCount(0);
 
   await a.getByRole("link", { name: "Painel" }).click();
   await expect(a.getByText("R$ 12.500,00")).toBeVisible();
