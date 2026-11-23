@@ -3,9 +3,26 @@ import { can } from "@/lib/auth/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Alert, EmptyState } from "@/components/ui";
 import Link from "next/link";
-import { recompute, recomputeAll, review } from "./actions";
+import { review, showCompatible } from "./actions";
 
 export const metadata = { title: "Compatibilidade · Rep360" };
+
+/** Motivo da nota em linguagem simples (o banco guarda o texto técnico). */
+function reasonText(r: { criterion: string; detail: string }): string {
+  const tail = r.detail.split(" ").slice(1).join(" ");
+  switch (r.criterion) {
+    case "territory":
+      return `Fica em ${r.detail.replace(/^Cobertura na UF /, "")}, onde a indústria atua`;
+    case "cnae":
+      return `A atividade (CNAE ${r.detail.match(/\d{7}/)?.[0] ?? tail}) é uma das que a indústria procura`;
+    case "segment":
+      return `Segmento ${tail}`;
+    case "reachable":
+      return "Tem contato com e-mail que pode receber mensagens";
+    default:
+      return r.detail;
+  }
+}
 
 const REVIEW_LABEL = { pending: "Pendente", approved: "Aprovado", rejected: "Rejeitado" } as const;
 
@@ -14,14 +31,14 @@ export default async function Page({
   searchParams,
 }: {
   params: Promise<{ tenantId: string }>;
-  searchParams: Promise<{ industria?: string }>;
+  searchParams: Promise<{ industria?: string; calculado?: string }>;
 }) {
   const { tenantId } = await params;
-  const { industria } = await searchParams;
+  const { industria, calculado } = await searchParams;
   const ctx = await requireTenantPage(tenantId);
   const writable = can(ctx.role, "deals.write");
   const supabase = await createSupabaseServerClient();
-  const { data: industries } = await supabase.from("industries").select("id, name").eq("tenant_id", tenantId).eq("active", true).order("name");
+  const { data: industries } = await supabase.from("industries").select("id, name, target_cnaes").eq("tenant_id", tenantId).eq("active", true).order("name");
   const byCustomer = industria === "clientes";
   const selected = byCustomer ? undefined : (industries?.find((i) => i.id === industria) ?? industries?.[0]);
   type MixRow = { company_id: string; score: number; review: keyof typeof REVIEW_LABEL; industries: { name: string } | null; companies: { legal_name: string; state_code: string | null } | null };
@@ -54,53 +71,77 @@ export default async function Page({
   type Row = { id: string; score: number; reasons: Reason[]; review: keyof typeof REVIEW_LABEL; companies: { legal_name: string; state_code: string | null; cnae: string | null } | null };
   const rows = (matches ?? []) as unknown as Row[];
 
+  // O que falta para aparecerem empresas (explicado na tela, em vez de lista vazia).
+  const [{ data: terr }, { data: cc }, { count: companyCount }] = await Promise.all([
+    selected
+      ? supabase.from("territories").select("state_code").eq("tenant_id", tenantId).eq("industry_id", selected.id)
+      : Promise.resolve({ data: [] as { state_code: string }[] }),
+    supabase.from("commercial_contexts").select("cnaes").eq("tenant_id", tenantId).maybeSingle(),
+    supabase.from("companies").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId),
+  ]);
+  const ufs = [...new Set((terr ?? []).map((t) => t.state_code as string))].sort();
+  const { count: inAreaCount } = selected && ufs.length
+    ? await supabase.from("companies").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).in("state_code", ufs)
+    : { count: 0 };
+  const cnaes = [...new Set([...((selected?.target_cnaes as string[] | null) ?? []), ...(((cc?.cnaes as string[] | null) ?? []))])];
+  const prospectLink = selected ? `/app/${tenantId}/prospeccao?industria=${selected.id}` : `/app/${tenantId}/prospeccao`;
+
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold">Compatibilidade</h1>
-      <p className="max-w-3xl text-sm text-neutral-600 dark:text-neutral-400">
-        Pontuação explicável: território da indústria (40, obrigatório), CNAE-alvo (30), segmento (20) e contato com e-mail apto e
-        fora da lista de supressão (10). Toda sugestão passa por revisão humana; aprovar cria um lead qualificado.
-      </p>
+      <div>
+        <h1 className="text-2xl font-semibold">Compatibilidade</h1>
+        <p className="max-w-3xl text-sm text-neutral-600 dark:text-neutral-400">
+          Escolha uma indústria e veja quais empresas da sua carteira combinam com ela, com a nota e o motivo. Para buscar empresas
+          novas na base da Receita, use a <Link href={prospectLink} className="underline">Prospecção</Link>.
+        </p>
+      </div>
       {!industries?.length ? (
-        <EmptyState title="Cadastre uma indústria e seus territórios para calcular compatibilidade" />
+        <EmptyState title="Cadastre primeiro a indústria que você representa">
+          <Link href={`/app/${tenantId}/prospeccao`} className="underline">Cadastrar indústria na Prospecção</Link>
+        </EmptyState>
       ) : (
-        <div className="flex flex-wrap items-end gap-4">
-          <form className="flex items-end gap-2">
-            <div className="flex flex-col gap-1">
-              <label htmlFor="industria" className="text-sm font-medium">
-                Indústria
-              </label>
-              <select id="industria" name="industria" defaultValue={byCustomer ? "clientes" : selected?.id} className="rounded-md border px-3 py-2">
-                <option value="clientes">Por cliente (todas as indústrias)</option>
-                {industries.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button className="rounded-md border px-3 py-2">Ver</button>
-          </form>
-          {writable && selected && (
-            <form action={recompute}>
-              <input type="hidden" name="tenant_id" value={tenantId} />
-              <input type="hidden" name="industry_id" value={selected.id} />
-              <button className="rounded-md bg-blue-700 px-4 py-2 font-medium text-white">Calcular compatibilidade</button>
-            </form>
-          )}
-          {writable && (
-            <form action={recomputeAll}>
-              <input type="hidden" name="tenant_id" value={tenantId} />
-              <button className="rounded-md border px-4 py-2 font-medium">Calcular todas as indústrias</button>
-            </form>
-          )}
-        </div>
+        <form action={showCompatible} className="flex flex-wrap items-end gap-3 rounded-lg border p-4">
+          <input type="hidden" name="tenant_id" value={tenantId} />
+          <div className="flex flex-col gap-1">
+            <label htmlFor="industria" className="text-sm font-medium">
+              Indústria
+            </label>
+            <select id="industria" name="industria" defaultValue={byCustomer ? "clientes" : selected?.id} className="rounded-md border px-3 py-2">
+              {industries.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.name}
+                </option>
+              ))}
+              <option value="clientes">Todas, agrupadas por cliente</option>
+            </select>
+          </div>
+          <button className="rounded-md bg-blue-700 px-4 py-2 font-medium text-white">Ver empresas compatíveis</button>
+          {!writable && <p className="text-sm text-neutral-500">Seu acesso é de leitura: você vê o último cálculo feito pela equipe.</p>}
+        </form>
       )}
+      <details className="max-w-3xl rounded-lg border p-3 text-sm">
+        <summary className="cursor-pointer font-medium">Como a nota é calculada</summary>
+        <ul className="mt-2 list-disc pl-5 text-neutral-600 dark:text-neutral-400">
+          <li>A empresa precisa ficar num estado (ou município) onde a indústria atua. Sem isso, ela não aparece.</li>
+          <li>+40 por estar na área da indústria.</li>
+          <li>+30 se a atividade da empresa (CNAE) é uma das que a indústria procura.</li>
+          <li>+20 se o segmento da empresa é o da indústria.</li>
+          <li>+10 se tem um contato com e-mail que pode receber mensagens.</li>
+        </ul>
+        <p className="mt-2 text-neutral-600 dark:text-neutral-400">
+          Nada é enviado daqui. Você aprova as que fazem sentido e elas viram leads no funil.
+        </p>
+      </details>
       {byCustomer && (
         <section aria-labelledby="por-cliente" className="flex flex-col gap-3">
           <h2 id="por-cliente" className="font-medium">Indústrias que podem vender para cada cliente</h2>
           {mixError && <Alert kind="error">Não foi possível carregar os resultados.</Alert>}
-          {!mixError && customerList.length === 0 && <EmptyState title="Nenhum resultado ainda. Clique em Calcular todas as indústrias." />}
+          {!mixError && customerList.length === 0 && (
+            <EmptyState title={calculado ? "Nenhuma empresa compatível com as indústrias cadastradas." : "Clique em Ver empresas compatíveis."}>
+              Confira se cada indústria tem estados em <Link href={`/app/${tenantId}/territorios`} className="underline">Territórios</Link> e
+              se há empresas na carteira (traga pela <Link href={`/app/${tenantId}/prospeccao`} className="underline">Prospecção</Link>).
+            </EmptyState>
+          )}
           <ul className="flex flex-col gap-3">
             {customerList.map(([id, c]) => (
               <li key={id} className="rounded-lg border p-4">
@@ -111,7 +152,7 @@ export default async function Page({
                 <ul className="mt-2 flex flex-wrap gap-2 text-sm">
                   {c.items.map((it) => (
                     <li key={it.industry} className="rounded-full border px-3 py-1">
-                      {it.industry} · {it.score}/100 · {REVIEW_LABEL[it.review]}
+                      {it.industry} · nota {it.score}/100 · {REVIEW_LABEL[it.review]}
                     </li>
                   ))}
                 </ul>
@@ -121,7 +162,40 @@ export default async function Page({
         </section>
       )}
       {error && <Alert kind="error">Não foi possível carregar os resultados.</Alert>}
-      {selected && rows.length === 0 && !error && <EmptyState title="Nenhum resultado ainda. Clique em Calcular compatibilidade." />}
+      {selected && !error && (
+        <section aria-label="O que falta" className="flex flex-col gap-2">
+          {ufs.length === 0 ? (
+            <Alert kind="info">
+              A {selected.name} ainda não tem área de atuação. Diga em quais estados ela vende em{" "}
+              <Link href={`/app/${tenantId}/territorios`} className="underline">Territórios</Link>; sem isso nenhuma empresa aparece.
+            </Alert>
+          ) : rows.length === 0 && (companyCount ?? 0) === 0 ? (
+            <Alert kind="info">
+              Sua carteira ainda não tem empresas. Busque empresas reais na{" "}
+              <Link href={prospectLink} className="underline">Prospecção da {selected.name}</Link>, adicione as que interessam à carteira e
+              volte aqui.
+            </Alert>
+          ) : rows.length === 0 && (inAreaCount ?? 0) === 0 ? (
+            <Alert kind="info">
+              Nenhuma empresa da sua carteira fica em {ufs.join(", ")}, onde a {selected.name} atua. Busque empresas dessa região na{" "}
+              <Link href={prospectLink} className="underline">Prospecção</Link>.
+            </Alert>
+          ) : rows.length === 0 ? (
+            <EmptyState title={calculado ? "Nenhuma empresa compatível." : "Clique em Ver empresas compatíveis."} />
+          ) : null}
+          {ufs.length > 0 && cnaes.length === 0 && (
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+              Dica: a {selected.name} não tem atividades (CNAEs) que procura. Cadastre na{" "}
+              <Link href={prospectLink} className="underline">Prospecção</Link> para a nota ficar mais precisa.
+            </p>
+          )}
+          {rows.length > 0 && (
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+              {rows.length} empresa(s) da carteira em {ufs.join(", ")} combinam com a {selected.name}.
+            </p>
+          )}
+        </section>
+      )}
       {rows.length > 0 && (
         <ul className="flex flex-col gap-3">
           {rows.map((m) => (
@@ -131,13 +205,13 @@ export default async function Page({
                   {m.companies?.legal_name} <span className="text-sm text-neutral-500">{m.companies?.state_code}</span>
                 </p>
                 <p>
-                  <strong className="text-lg">{m.score}</strong>/100 · {REVIEW_LABEL[m.review]}
+                  Nota <strong className="text-lg">{m.score}</strong>/100 · {REVIEW_LABEL[m.review]}
                 </p>
               </div>
               <ul className="mt-2 list-disc pl-5 text-sm text-neutral-600 dark:text-neutral-400">
                 {m.reasons.map((r) => (
                   <li key={r.criterion}>
-                    {r.detail} (+{r.points})
+                    {reasonText(r)} (+{r.points})
                   </li>
                 ))}
               </ul>

@@ -45,8 +45,8 @@ async function confirmationLink(email: string): Promise<string> {
   throw new Error(`e-mail de confirmação não chegou para ${email}`);
 }
 
-async function onboard(page: Page) {
-  const email = `lote-${run}@alfa.test`;
+async function onboard(page: Page, tag = "lote") {
+  const email = `${tag}-${run}@alfa.test`;
   await page.goto("/cadastro");
   await page.getByLabel("Nome completo").fill("Lia Lote");
   await page.getByLabel("E-mail").fill(email);
@@ -55,7 +55,7 @@ async function onboard(page: Page) {
   await expect(page.getByRole("status")).toContainText("link de confirmação");
   await page.goto(await confirmationLink(email));
   await page.getByLabel("Nome da representação").fill("Lote Teste");
-  await page.getByLabel("Identificador").fill(`lote-${run}`);
+  await page.getByLabel("Identificador").fill(`${tag}-${run}`);
   await page.getByRole("button", { name: "Criar representação" }).click();
   await expect(page).toHaveURL(/\/app\/seguranca\?novo=1/);
   // MFA de administrador (obrigatório por padrão); se o ambiente desligou, segue.
@@ -139,5 +139,84 @@ test("catálogo publicado enviado a vários clientes pelo WhatsApp, um clique po
   await expect(page.getByText(/1\s*enviado\(s\) · 0\s*na fila · 1\s*pulado/)).toBeVisible();
   await page.getByRole("link", { name: "← Envios" }).click();
   await expect(page.getByText("1 enviado(s) · 0 na fila · 0 bloqueado(s)")).toBeVisible();
+  await context.close();
+});
+
+test("texto padrão e assinatura da representação; lote por e-mail enviado pelo sistema (modo de teste), uma vez por cliente", async ({ browser }) => {
+  const context = await browser.newContext({ deviceScaleFactor: 2, viewport: { width: 1360, height: 900 } });
+  const page = await context.newPage();
+  await onboard(page, "direto");
+  const tenantId = page.url().match(/\/app\/([0-9a-f-]{36})/)![1];
+
+  // Texto padrão de catálogo por e-mail e assinatura próprios desta representação.
+  await page.getByRole("link", { name: "Mensagens", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Mensagens", level: 1 })).toBeVisible();
+  await expect(page.getByText("teste (os e-mails são registrados, mas não saem)")).toBeVisible();
+  await page.getByRole("textbox", { name: "Assinatura" }).fill("Lia Lote\nDireto Representações\n(84) 3200-0000");
+  await page.getByRole("button", { name: "Salvar assinatura" }).click();
+  await expect(page.getByText("Assinatura salva.")).toBeVisible();
+  const tpl = page.getByRole("form", { name: /Envio de catálogo · E-mail/ });
+  await tpl.getByLabel("Assunto").fill("Novidades {{catalogo}} para {{empresa}}");
+  await tpl.getByLabel("Texto").fill("Prezados da {{empresa}}, aqui é {{remetente}}. Segue nosso catálogo {{catalogo}}: {{link_catalogo}}");
+  await tpl.getByRole("button", { name: "Salvar texto" }).click();
+  await expect(page.getByText("Texto padrão salvo.")).toBeVisible();
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/mensagens.png`, fullPage: true });
+
+  await page.getByRole("link", { name: "Prospecção", exact: true }).click();
+  await page.getByLabel("Nome da indústria representada").fill("Hospitalar Direto");
+  await page.getByRole("button", { name: "Criar e ver empresas" }).click();
+  await page.getByRole("checkbox", { name: "Marcar HOSPITAL LOTE NATAL LTDA" }).check();
+  await page.getByRole("checkbox", { name: "Marcar CLINICA LOTE MOSSORO LTDA" }).check();
+  await page.getByRole("button", { name: /Adicionar 2 à carteira/ }).click();
+  await expect(page.getByText("2 adicionada(s) à carteira")).toBeVisible();
+
+  await page.getByRole("link", { name: "Catálogos" }).click();
+  await expect(page.getByRole("heading", { name: "Catálogos", level: 1 })).toBeVisible();
+  await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Hospitalar Direto" });
+  await page.getByLabel("Título").fill("Linha Direta 2027");
+  await page.getByLabel("Arquivo PDF").setInputFiles({ name: "linha.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF") });
+  await page.getByRole("button", { name: "Enviar catálogo" }).click();
+  await expect(page.getByText("Catálogo enviado como rascunho.")).toBeVisible();
+  const item = page.getByRole("listitem").filter({ hasText: "Linha Direta 2027" });
+  await item.getByRole("button", { name: "Publicar" }).click();
+  await item.getByRole("link", { name: "Enviar para clientes" }).click();
+
+  // O texto padrão da representação já vem preenchido.
+  await expect(page.getByRole("heading", { name: "Enviar catálogo para vários clientes" })).toBeVisible();
+  await expect(page.getByLabel("Mensagem")).toHaveValue(/^Prezados da /);
+  await page.getByRole("button", { name: "Montar fila de envio" }).click();
+  await expect(page.getByText(/0\s*enviado\(s\) · 2\s*na fila/)).toBeVisible();
+  await expect(page.getByRole("region", { name: /Mensagem para/ }).getByLabel("Mensagem")).toHaveValue(/Prezados da (CLINICA LOTE MOSSORO LTDA|HOSPITAL LOTE)/);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/envio-direto-fila.png`, fullPage: true });
+
+  await page.getByRole("button", { name: "Enviar todos pelo sistema (2)" }).click();
+  await expect(page.getByText("2 enviado(s).")).toBeVisible();
+
+  const db = new Client({ connectionString: DB_URL });
+  await db.connect();
+  try {
+    const { rows } = await db.query(
+      "select to_address, subject, body, status from public.email_messages where tenant_id = $1 order by to_address", [tenantId]);
+    expect(rows).toHaveLength(2);
+    for (const r of rows) {
+      expect(r.status).toBe("sandbox");
+      expect(r.subject).toMatch(/^Novidades Linha Direta 2027 para /);
+      expect(r.body).toContain("/storage/v1/object/sign/catalogs/");
+      expect(r.body).toContain("Direto Representações");
+      // Assinatura antes da linha de oposição.
+      expect(r.body.indexOf("Direto Representações")).toBeLessThan(r.body.indexOf("SAIR"));
+    }
+    const sent = await db.query(
+      "select count(*)::int as n from public.campaign_recipients where tenant_id = $1 and status = 'sent'", [tenantId]);
+    expect(sent.rows[0].n).toBe(2);
+    const acts = await db.query(
+      "select count(*)::int as n from public.activities where tenant_id = $1 and metadata ->> 'mode' = 'sandbox'", [tenantId]);
+    expect(acts.rows[0].n).toBe(2);
+  } finally {
+    await db.end();
+  }
+  await page.reload();
+  await expect(page.getByText(/2\s*enviado\(s\) · 0\s*na fila/)).toBeVisible();
+  await expect(page.getByRole("button", { name: /Enviar todos pelo sistema/ })).toHaveCount(0);
   await context.close();
 });

@@ -131,7 +131,7 @@ test("prospecção: material hospitalar → tabela → carteira → WhatsApp e e
   const mail = page.getByRole("region", { name: /E-mail para CLINICA EXEMPLO/ });
   await expect(mail.getByLabel("Assunto")).toHaveValue("Hospitalar Exemplo para CLINICA EXEMPLO MOSSORO LTDA");
   await mail.getByLabel("Para (e-mail)").fill("compras@clinica-exemplo.test");
-  await mail.getByRole("button", { name: "Abrir no e-mail" }).click();
+  await mail.getByRole("button", { name: "Abrir no meu e-mail" }).click();
   await expect(mail.getByText("O contato ficou registrado no histórico")).toBeVisible();
   await mail.getByRole("button", { name: "Fechar" }).click();
   await clinic.getByRole("link", { name: "Editar dados" }).click();
@@ -171,7 +171,7 @@ test("prospecção: material hospitalar → tabela → carteira → WhatsApp e e
 
   // Compatibilidade: calcula todas e agrupa por cliente.
   await page.goto(`/app/${tenantId}/compatibilidade?industria=clientes`);
-  await page.getByRole("button", { name: "Calcular todas as indústrias" }).click();
+  await page.getByRole("button", { name: "Ver empresas compatíveis" }).click();
   const porCliente = page.getByRole("region", { name: "Indústrias que podem vender para cada cliente" });
   await expect(porCliente.getByRole("listitem").filter({ hasText: "CLINICA EXEMPLO MOSSORO" }).first()).toContainText("2 indústria(s)");
   await context.close();

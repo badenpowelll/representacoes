@@ -4,7 +4,8 @@ import { requireTenantPage } from "@/lib/auth/session";
 import { can } from "@/lib/auth/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Alert, EmptyState } from "@/components/ui";
-import { CATALOG_TEMPLATES, CATALOG_VARIABLES, LINK_DAYS, previewMessage } from "@/lib/catalogos/envio";
+import { loadTenantTemplates } from "@/lib/mensagens/load";
+import { CATALOG_VARIABLES, LINK_DAYS, previewMessage } from "@/lib/catalogos/envio";
 import { createCampaign } from "../actions";
 
 export const metadata = { title: "Enviar catálogo · Rep360" };
@@ -72,7 +73,7 @@ export default async function Page({
     : { data: [] as { ibge_code: number; name: string }[] };
   const cityName = (c: C) => cities?.find((m) => m.ibge_code === c.municipality_id)?.name;
   const states = [...new Set(companies.map((c) => c.state_code).filter(Boolean))].sort() as string[];
-  const tpl = CATALOG_TEMPLATES[channel];
+  const tpl = (await loadTenantTemplates(supabase, tenantId)).catalogo[channel];
   const vars = {
     catalogo: v.catalogs.title,
     industria: v.catalogs.industries?.name ?? "",

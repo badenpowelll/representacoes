@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Alert, EmptyState } from "@/components/ui";
-import { DEFAULT_TEMPLATES } from "@/lib/prospeccao/messages";
+import { loadTenantTemplates } from "@/lib/mensagens/load";
 import { ProspectTable, type ProspectRow } from "./table";
 import type { Search } from "./page";
 
@@ -36,7 +36,7 @@ export async function MixView({
   const page = Math.max(1, Number.parseInt(sp.pagina ?? "1", 10) || 1);
   const municipality = sp.municipio && /^\d{7}$/.test(sp.municipio) ? Number(sp.municipio) : null;
 
-  const [{ data: territories }, search] = await Promise.all([
+  const [{ data: territories }, search, tenantTemplates] = await Promise.all([
     supabase.from("territories").select("industry_id, state_code, municipality_id").eq("tenant_id", tenantId),
     supabase.rpc("prospect_search_mix", {
       p_tenant: tenantId,
@@ -49,6 +49,7 @@ export async function MixView({
       p_limit: PAGE_SIZE,
       p_offset: (page - 1) * PAGE_SIZE,
     }),
+    loadTenantTemplates(supabase, tenantId),
   ]);
   const states = [...new Set((territories ?? []).map((t) => t.state_code as string))].sort();
   const { data: municipalities } = states.length
@@ -160,7 +161,7 @@ export async function MixView({
             industryId={null}
             rows={rows}
             canWrite={canWrite}
-            templates={DEFAULT_TEMPLATES}
+            templates={tenantTemplates.prospeccao}
             baseVars={baseVars}
           />
           <nav aria-label="Paginação" className="flex gap-4 text-sm">
@@ -168,7 +169,7 @@ export async function MixView({
             {page < pages && <Link href={query({ pagina: String(page + 1) })} className="underline">Próxima</Link>}
           </nav>
           <p className="text-xs text-neutral-500">
-            No mix, o texto usa o modelo padrão e {"{{industria}}"} vira a lista das indústrias compatíveis com cada cliente. Os
+            No mix, o texto usa o padrão da representação (em Mensagens) e {"{{industria}}"} vira a lista das indústrias compatíveis com cada cliente. Os
             modelos por indústria são editados ao escolher a indústria no seletor.
           </p>
         </>

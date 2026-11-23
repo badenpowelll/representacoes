@@ -66,7 +66,7 @@ export function ProspectTable({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [addState, addAction] = useActionState(addToPortfolio, initialState);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [result, setResult] = useState<{ ok: boolean; message: string; url?: string } | null>(null);
+  const [result, setResult] = useState<{ ok: boolean; message: string; url?: string | null } | null>(null);
   const [pending, startTransition] = useTransition();
 
   const selectable = rows.filter((r) => !fullyLinked(r));
@@ -101,8 +101,9 @@ export function ProspectTable({
     });
   };
 
-  const send = () => {
+  const send = (mode: "link" | "direct" = "link") => {
     if (!draft) return;
+    const requestId = `${draft.row.cnpj}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     startTransition(async () => {
       const r = await prepareOutreach({
         tenantId,
@@ -113,9 +114,11 @@ export function ProspectTable({
         originalTo: draft.originalTo || undefined,
         subject: draft.channel === "email" ? draft.subject : undefined,
         body: draft.body,
+        mode,
+        requestId,
       });
       setResult(r);
-      if (r.ok) {
+      if (r.ok && r.url) {
         if (draft.channel === "email") window.location.href = r.url;
         else window.open(r.url, "_blank", "noopener,noreferrer");
       }
@@ -296,10 +299,18 @@ export function ProspectTable({
                 )}
               </Alert>
             )}
-            <div>
-              <button type="button" onClick={send} disabled={pending || pendingVars.length > 0}
-                className="rounded-md bg-green-700 px-4 py-2 font-medium text-white hover:bg-green-800 disabled:opacity-50">
-                {pending ? "Verificando..." : draft.channel === "email" ? "Abrir no e-mail" : "Abrir no WhatsApp"}
+            <div className="flex flex-wrap gap-2">
+              {draft.channel === "email" && (
+                <button type="button" onClick={() => send("direct")} disabled={pending || pendingVars.length > 0}
+                  className="rounded-md bg-blue-700 px-4 py-2 font-medium text-white hover:bg-blue-800 disabled:opacity-50">
+                  {pending ? "Enviando..." : "Enviar pelo sistema"}
+                </button>
+              )}
+              <button type="button" onClick={() => send("link")} disabled={pending || pendingVars.length > 0}
+                className={draft.channel === "email"
+                  ? "rounded-md border px-4 py-2 font-medium disabled:opacity-50"
+                  : "rounded-md bg-green-700 px-4 py-2 font-medium text-white hover:bg-green-800 disabled:opacity-50"}>
+                {pending ? "Verificando..." : draft.channel === "email" ? "Abrir no meu e-mail" : "Abrir no WhatsApp"}
               </button>
             </div>
           </div>

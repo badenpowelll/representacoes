@@ -1,30 +1,30 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { can } from "@/lib/auth/permissions";
 import { requireTenantContext } from "@/lib/auth/tenant-context";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export async function recompute(form: FormData) {
+/**
+ * Um só passo para o usuário: escolhe a indústria (ou "todas, por cliente"),
+ * o sistema recalcula com a carteira atual e mostra o resultado.
+ */
+export async function showCompatible(form: FormData) {
   const ctx = await requireTenantContext(String(form.get("tenant_id") ?? ""));
-  if (!can(ctx.role, "deals.write")) return;
-  const industry = z.uuid().safeParse(form.get("industry_id"));
-  if (!industry.success) return;
-  const supabase = await createSupabaseServerClient();
-  await supabase.rpc("compute_matches", { p_tenant: ctx.tenantId, p_industry: industry.data });
-  revalidatePath(`/app/${ctx.tenantId}/compatibilidade`);
-}
-
-/** Calcula a compatibilidade de todas as indústrias ativas de uma vez (mix por cliente). */
-export async function recomputeAll(form: FormData) {
-  const ctx = await requireTenantContext(String(form.get("tenant_id") ?? ""));
-  if (!can(ctx.role, "deals.write")) return;
-  const supabase = await createSupabaseServerClient();
-  const { data: industries } = await supabase.from("industries").select("id").eq("tenant_id", ctx.tenantId).eq("active", true);
-  for (const i of industries ?? []) {
-    await supabase.rpc("compute_matches", { p_tenant: ctx.tenantId, p_industry: i.id });
+  const choice = String(form.get("industria") ?? "");
+  const all = choice === "clientes";
+  const industry = z.uuid().safeParse(choice);
+  const target = `/app/${ctx.tenantId}/compatibilidade${all ? "?industria=clientes" : industry.success ? `?industria=${industry.data}` : ""}`;
+  if (can(ctx.role, "deals.write") && (all || industry.success)) {
+    const supabase = await createSupabaseServerClient();
+    const ids = all
+      ? ((await supabase.from("industries").select("id").eq("tenant_id", ctx.tenantId).eq("active", true)).data ?? []).map((i) => i.id as string)
+      : [industry.data!];
+    for (const id of ids) await supabase.rpc("compute_matches", { p_tenant: ctx.tenantId, p_industry: id });
+    revalidatePath(`/app/${ctx.tenantId}/compatibilidade`);
   }
-  revalidatePath(`/app/${ctx.tenantId}/compatibilidade`);
+  redirect(`${target}${target.includes("?") ? "&" : "?"}calculado=1`);
 }
 
 /** Revisão humana: aprovar cria o lead (com origem registrada); rejeitar só marca. */
