@@ -17,11 +17,12 @@ describe("CNPJ", () => {
 describe("schemas", () => {
   it("indústria normaliza CNPJ e campos vazios", () => {
     const r = industrySchema.parse({ name: " Metalúrgica ", cnpj: "11.222.333/0001-81", segment: "", website: "" });
-    expect(r).toEqual({ name: "Metalúrgica", cnpj: "11222333000181", segment: null, website: null });
+    expect(r).toEqual({ name: "Metalúrgica", cnpj: "11222333000181", segment: null, website: null, contact_channels: [] });
   });
-  it("indústria rejeita CNPJ inválido e site sem protocolo", () => {
+  it("indústria rejeita CNPJ inválido e site inválido; completa https:// no site", () => {
     expect(industrySchema.safeParse({ name: "X Y", cnpj: "11222333000100" }).success).toBe(false);
-    expect(industrySchema.safeParse({ name: "X Y", website: "exemplo.com" }).success).toBe(false);
+    expect(industrySchema.safeParse({ name: "X Y", website: "não é site" }).success).toBe(false);
+    expect(industrySchema.parse({ name: "X Y", website: "exemplo.com" }).website).toBe("https://exemplo.com");
   });
   it("empresa exige origem do dado", () => {
     expect(companySchema.safeParse({ legal_name: "Loja", source: "" }).success).toBe(false);
