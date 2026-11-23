@@ -28,6 +28,7 @@ export function UfMunicipioFields({
   scopeError,
   explicitScope = false,
   municipioEmptyLabel = "Todos os municípios",
+  prefill,
 }: {
   states: { code: string; name?: string }[];
   defaultUf?: string;
@@ -38,8 +39,18 @@ export function UfMunicipioFields({
   scopeError?: string;
   explicitScope?: boolean;
   municipioEmptyLabel?: string;
+  /** Preenchimento externo (ex.: consulta de CNPJ). Muda `seq` para aplicar de novo. */
+  prefill?: { uf: string; municipio?: string | null; seq: number };
 }) {
   const [uf, setUf] = useState(defaultUf ?? "");
+  // Município desejado para a UF correspondente (padrão do form ou preenchimento externo).
+  const [wanted, setWanted] = useState({ uf: defaultUf ?? "", municipio: defaultMunicipio ?? "" });
+  const [appliedSeq, setAppliedSeq] = useState<number | null>(null);
+  if (prefill && prefill.seq !== appliedSeq) {
+    setAppliedSeq(prefill.seq);
+    setUf(prefill.uf);
+    setWanted({ uf: prefill.uf, municipio: prefill.municipio ?? "" });
+  }
   const [scope, setScope] = useState(defaultScope ?? "");
   const [list, setList] = useState<{ uf: string; items: Municipio[]; failed: boolean } | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -114,7 +125,7 @@ export function UfMunicipioFields({
             Município
           </label>
           <select id="municipality_id" name="municipality_id" className={sel}
-            defaultValue={defaultUf === uf ? (defaultMunicipio ?? "") : ""} key={`${uf}-${status}`}
+            defaultValue={wanted.uf === uf ? wanted.municipio : ""} key={`${uf}-${status}-${appliedSeq ?? 0}`}
             aria-disabled={status !== "ready" || undefined} aria-busy={status === "loading" || undefined}
             aria-invalid={municipioError ? true : undefined} required={municipalRequired}>
             <option value="">

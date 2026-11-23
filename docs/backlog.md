@@ -28,6 +28,8 @@ Interface:
 - ✅ Indústrias, empresas e funil Kanban (criar e mover negócios, motivo de perda)
 - ✅ E2E Playwright do fluxo principal, incluindo acesso negado entre representações
 - ✅ Equipe e convites (link exibido uma vez; sem envio de e-mail nesta fase)
+- ✅ Preenchimento automático por CNPJ (BrasilAPI) em indústrias, empresas e prospecção; dados completos da Receita (endereço, telefones, CNAEs, sócios) na ficha da empresa (ADR 0006)
+- ⏳ CNPJ: limite de consultas por tenant, provedor de reserva, ficha da Receita também para indústrias
 - ✅ Contexto comercial e territórios
 - ✅ Compatibilidade: calcular, ver motivos do score, aprovar (gera lead) ou rejeitar
 - ✅ Catálogos: upload de PDF privado (validação de assinatura %PDF, SHA-256, link assinado de 5 min)
