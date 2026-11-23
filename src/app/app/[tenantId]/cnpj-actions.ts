@@ -57,6 +57,6 @@ export async function lookupCnpj(tenantId: string, cnpjInput: string, opts: { re
     { onConflict: "tenant_id,cnpj" },
   );
   // Falha ao salvar não impede o preenchimento: o formulário ainda é validado no envio.
-  if (!error && opts.refresh) revalidatePath(`/app/${ctx.tenantId}/empresas`, "layout");
+  if (!error && opts.refresh) revalidatePath(`/app/${ctx.tenantId}`, "layout");
   return { ok: true, data: { ...result.data, fetchedAt }, cached: false };
 }
