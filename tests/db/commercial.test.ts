@@ -183,6 +183,28 @@ describe("territórios", () => {
     expect(dup.ok).toBe(false);
   });
 
+  it("cobertura em lote (vários municípios) é tudo ou nada", async () => {
+    // Fortaleza e Caucaia são do CE; João Pessoa (2507507) não: o lote inteiro é recusado.
+    const bad = await tryAsUser(pool, alfaAdmin, (db) =>
+      db.query(
+        "insert into public.territories (tenant_id, industry_id, state_code, municipality_id) values ($1, $2, 'CE', 2304400), ($1, $2, 'CE', 2303709), ($1, $2, 'CE', 2507507)",
+        [alfa, alfaIndustry],
+      ),
+    );
+    expect(bad.ok).toBe(false);
+    const depois = await asUser(pool, alfaAdmin, async (db) =>
+      (await db.query("select 1 from public.territories where tenant_id = $1 and municipality_id in (2304400, 2303709)", [alfa])).rowCount,
+    );
+    expect(depois).toBe(0);
+    const ok = await tryAsUser(pool, alfaAdmin, (db) =>
+      db.query(
+        "insert into public.territories (tenant_id, industry_id, state_code, municipality_id) values ($1, $2, 'CE', 2304400), ($1, $2, 'CE', 2303709)",
+        [alfa, alfaIndustry],
+      ),
+    );
+    expect(ok.ok).toBe(true);
+  });
+
   it("Beta não lista territórios de Alfa", async () => {
     const n = await asUser(pool, betaAdmin, async (db) => (await db.query("select * from public.territories")).rowCount);
     expect(n).toBe(0);

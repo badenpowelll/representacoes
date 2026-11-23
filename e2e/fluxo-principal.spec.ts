@@ -256,47 +256,59 @@ test("contexto comercial e territórios", async ({ browser }) => {
   await page.getByRole("button", { name: "Cadastrar indústria" }).click();
   await expect(page.getByRole("cell", { name: "Tintas Delta" })).toBeVisible();
 
+  // Territórios em cascata: Região (filtro) → Estados → Municípios (todos ou um a um).
   await page.getByRole("link", { name: "Territórios" }).click();
-  await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Tintas Delta" });
-  await page.getByLabel("UF", { exact: true }).selectOption("RN");
-  await page.getByLabel("UF inteira").check();
-  await page.getByRole("button", { name: "Adicionar cobertura" }).click();
-  await expect(page.getByText("Cobertura adicionada.")).toBeVisible();
+  await expect(page.getByLabel("Indústria", { exact: true })).toHaveValue(/.+/); // única indústria já vem escolhida
+  await page.getByRole("button", { name: "Salvar territórios" }).click();
+  await expect(page.getByText("Escolha ao menos um estado.")).toBeVisible();
+
+  await page.getByRole("button", { name: "Nordeste", exact: true }).click();
+  await expect(page.getByLabel("SP · São Paulo")).toHaveCount(0);
+  await page.getByRole("button", { name: "Marcar todo o Nordeste" }).click();
+  await expect(page.getByLabel("BA · Bahia")).toBeChecked();
+  await page.getByRole("button", { name: "Desmarcar Nordeste" }).click();
+  await page.getByLabel("RN · Rio Grande do Norte").check();
+  await expect(page.getByLabel("Todos os municípios de RN (167)")).toBeChecked();
+  await page.getByRole("button", { name: "Salvar territórios" }).click();
+  await expect(page.getByText("Cobertura adicionada: RN (todos os municípios).")).toBeVisible();
   await expect(page.getByRole("cell", { name: "RN", exact: true })).toBeVisible();
-  await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Tintas Delta" });
-  await page.getByLabel("UF", { exact: true }).selectOption("RN");
-  await page.getByLabel("UF inteira").check();
-  await page.getByRole("button", { name: "Adicionar cobertura" }).click();
+  await expect(page.getByRole("cell", { name: "Toda a UF" })).toBeVisible();
+
+  await page.getByLabel("RN · Rio Grande do Norte").check();
+  await page.getByRole("button", { name: "Salvar territórios" }).click();
   await expect(page.getByText("Esta cobertura já está cadastrada.")).toBeVisible();
 
-  // Sem escolher a abrangência, o servidor recusa (não vira cobertura estadual por omissão).
+  // Lista de municípios indisponível: "escolher municípios" sem nenhum marcado é recusado
+  // (não vira cobertura do estado inteiro por omissão).
   await page.reload();
-  await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Tintas Delta" });
-  await page.getByLabel("UF", { exact: true }).selectOption("RN");
-  await page.getByRole("button", { name: "Adicionar cobertura" }).click();
-  await expect(page.getByText("Escolha UF inteira ou um município")).toBeVisible();
-
-  // Lista de municípios indisponível: cobertura municipal é recusada.
   await page.route("**/rest/v1/ref_municipalities*", (r) =>
     r.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ code: "XX000", message: "indisponível" }) }));
-  await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Tintas Delta" });
-  await page.getByLabel("UF", { exact: true }).selectOption("CE");
-  await page.getByLabel("Um município").check();
+  await page.getByLabel("CE · Ceará").check();
+  await page.getByLabel("Escolher municípios de CE").check();
   await expect(page.getByText("Não foi possível carregar os municípios.")).toBeVisible();
-  await page.getByRole("button", { name: "Adicionar cobertura" }).click();
-  await expect(page.getByText("A lista de municípios não carregou.", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "Salvar territórios" }).click();
+  await expect(page.getByText("Escolha ao menos um município", { exact: false })).toBeVisible();
   await expect(page.getByRole("cell", { name: "CE", exact: true })).toHaveCount(0);
   await page.unroute("**/rest/v1/ref_municipalities*");
 
-  // Cobertura por município (referência do IBGE), com troca rápida de UF.
-  await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Tintas Delta" });
-  await page.getByLabel("UF", { exact: true }).selectOption("CE");
-  await page.getByLabel("Um município").check();
-  await page.getByLabel("UF", { exact: true }).selectOption("RN");
-  await page.getByLabel("Município", { exact: true }).selectOption({ label: "Mossoró" });
-  await page.getByRole("button", { name: "Adicionar cobertura" }).click();
-  await expect(page.getByText("Cobertura adicionada.")).toBeVisible();
-  await expect(page.getByRole("cell", { name: "Mossoró" })).toBeVisible();
+  // Municípios um a um (com busca) em CE + PB inteira, num envio só.
+  await page.getByRole("button", { name: "Tentar de novo" }).click();
+  await page.getByLabel("Buscar município em CE").fill("fortaleza");
+  await page.getByLabel("Fortaleza", { exact: true }).check();
+  await page.getByLabel("Buscar município em CE").fill("caucaia");
+  await page.getByLabel("Caucaia", { exact: true }).check();
+  await expect(page.getByText("2 de 184 municípios marcados")).toBeVisible();
+  await page.getByLabel("PB · Paraíba").check();
+  await page.getByRole("button", { name: "Salvar territórios" }).click();
+  await expect(page.getByText("Cobertura adicionada: CE (2 municípios), PB (todos os municípios).")).toBeVisible();
+  await expect(page.getByText("2 municípios: Caucaia, Fortaleza")).toBeVisible();
+  await expect(page.getByRole("cell", { name: "PB", exact: true })).toBeVisible();
+
+  // Tirar um município do grupo.
+  await page.getByText("2 municípios: Caucaia, Fortaleza").click();
+  await page.getByRole("button", { name: "Tirar Caucaia" }).click();
+  await expect(page.getByRole("button", { name: "Tirar Caucaia" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Tirar Fortaleza" })).toBeVisible();
 });
 
 test("compatibilidade: calcula score explicável e aprovação gera lead", async ({ browser }) => {
@@ -315,11 +327,9 @@ test("compatibilidade: calcula score explicável e aprovação gera lead", async
   await expect(page.getByRole("cell", { name: "Cerâmica Epsilon" })).toBeVisible();
 
   await page.getByRole("link", { name: "Territórios" }).click();
-  await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Cerâmica Epsilon" });
-  await page.getByLabel("UF", { exact: true }).selectOption("RN");
-  await page.getByLabel("UF inteira").check();
-  await page.getByRole("button", { name: "Adicionar cobertura" }).click();
-  await expect(page.getByText("Cobertura adicionada.")).toBeVisible();
+  await page.getByLabel("RN · Rio Grande do Norte").check();
+  await page.getByRole("button", { name: "Salvar territórios" }).click();
+  await expect(page.getByText("Cobertura adicionada: RN (todos os municípios).")).toBeVisible();
 
   for (const [name, uf] of [
     ["Depósito Mossoró", "RN"],
