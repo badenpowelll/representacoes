@@ -423,7 +423,7 @@ test("prospecção manual: fonte obrigatória, CNPJ reaproveitado e lead levado 
   }
 
   await page.getByRole("link", { name: "Leads" }).click();
-  await expect(page.getByRole("heading", { name: "Novo prospect" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Cadastrar empresa que você já conhece" })).toBeVisible();
   await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Telhas Eta" });
   await page.getByLabel("Razão social").fill("Construtora Mossoró");
   await page.getByLabel("CNPJ").fill("11.222.333/0001-81");

@@ -191,3 +191,17 @@ describe("modelos de mensagem", () => {
     expect((await tryAsUser(pool, rep, (db) => db.query("insert into public.message_templates (tenant_id, industry_id, channel, body) values ($1, $2, 'email', 'sem assunto aqui ok')", [alfa, semCnae]))).ok).toBe(false);
   });
 });
+
+describe("prospect_add com correção em contato existente", () => {
+  it("atualiza só o campo corrigido e registra a correção", async () => {
+    await pool.query(
+      "insert into ref.cnpj_establishments (cnpj, legal_name, is_headquarters, main_cnae, state_code, municipality_id, phones, email, dataset_ref) values ('90000000000606', 'LAB FICTICIO LTDA', true, '8610101', 'RN', $1, '{8433330000}', 'lab@lab.test', '2026-10')",
+      [NATAL],
+    );
+    const first = await add(rep, alfa, hosp, "90000000000606");
+    const second = await add(rep, alfa, hosp, "90000000000606", null, "(84) 98777-0000");
+    expect(second.contact_id).toBe(first.contact_id);
+    const { rows } = await pool.query("select email, phone, source from public.contacts where id = $1", [first.contact_id]);
+    expect(rows[0]).toEqual({ email: "lab@lab.test", phone: "84987770000", source: "Receita Federal - dados abertos do CNPJ (ref. 2026-10), corrigido manualmente" });
+  });
+});

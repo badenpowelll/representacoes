@@ -247,7 +247,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
           <div className="grid gap-6 lg:grid-cols-2">
             {(["email", "whatsapp"] as const).map((ch) => {
               const t = tpl(ch);
-              return <TemplateForm key={`${industry.id}-${ch}-${t.body.length}`} tenantId={tenantId} industryId={industry.id} channel={ch} {...t} />;
+              return <TemplateForm key={`${industry.id}-${ch}`} tenantId={tenantId} industryId={industry.id} channel={ch} {...t} />;
             })}
           </div>
         ) : (

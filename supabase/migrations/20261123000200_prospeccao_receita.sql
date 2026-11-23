@@ -496,8 +496,13 @@ begin
       end if;
     elsif p_email is not null or p_phone is not null then
       update public.contacts ct
-         set email = coalesce(v_email, ct.email), phone = coalesce(v_phone, ct.phone)
-       where ct.tenant_id = p_tenant and ct.id = v_contact;
+         set email = case when p_email is not null then v_email else ct.email end,
+             phone = case when p_phone is not null then v_phone else ct.phone end,
+             source = case when ct.source like '%corrigido manualmente' then ct.source
+                           else pg_catalog.left(ct.source || ', corrigido manualmente', 300) end
+       where ct.tenant_id = p_tenant and ct.id = v_contact
+         and ((p_email is not null and ct.email is distinct from v_email)
+              or (p_phone is not null and app.normalize_phone(ct.phone) is distinct from v_phone));
     end if;
   end if;
 
