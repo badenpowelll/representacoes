@@ -127,6 +127,31 @@ test("CNPJ preenche empresa, prospecção e indústria; ficha mostra sócios e e
   await expect(page.getByText("RUA DAS FLORES, 100 · CENTRO · NATAL/RN · CEP 59000-000")).toBeVisible();
   await expect(page.getByText("FULANA DE TAL")).toBeVisible();
 
+  // Site e contatos editáveis por cima da Receita; atualizar a Receita não apaga a edição
+  await page.getByRole("link", { name: "Exemplo Indústria" }).click();
+  const canais = page.getByRole("region", { name: "Site e canais de contato" });
+  await expect(canais).toContainText("Telefone · Receita: (84) 3222-1234 · da Receita");
+  await canais.getByText("Editar site e canais").click();
+  await canais.getByLabel("Site").fill("exemplo.test");
+  await canais.getByRole("button", { name: "Adicionar canal" }).click();
+  await canais.getByLabel("Tipo do canal 3").selectOption("email");
+  await canais.getByLabel("Rótulo do canal 3").fill("Licitações");
+  await canais.getByLabel("E-mail 3").fill("licita@exemplo.test");
+  await canais.getByRole("button", { name: "Adicionar canal" }).click();
+  await canais.getByLabel("Tipo do canal 4").selectOption("whatsapp");
+  await canais.getByLabel("Rótulo do canal 4").fill("Comercial");
+  await canais.getByLabel("WhatsApp 4").fill("(84) 99999-0000");
+  await canais.getByRole("button", { name: "Salvar canais" }).click();
+  await expect(page.getByText("Site e canais de contato salvos.")).toBeVisible();
+  await expect(canais).toContainText("Site: https://exemplo.test");
+  await expect(canais).toContainText("E-mail · Licitações: licita@exemplo.test · editado por você");
+  await expect(canais).toContainText("WhatsApp · Comercial: (84) 99999-0000 · editado por você");
+  await page.getByRole("button", { name: "Atualizar dados da Receita" }).click();
+  await expect(page.getByRole("button", { name: "Atualizar dados da Receita" })).toBeEnabled();
+  await page.reload();
+  await expect(canais).toContainText("licita@exemplo.test");
+  await expect(canais).toContainText("(84) 99999-0000");
+
   // Empresa: tudo preenchido, inclusive UF e município; o que o usuário digitou é preservado
   await page.getByRole("link", { name: "Empresas" }).click();
   await page.getByLabel("Origem do dado").fill("indicação");

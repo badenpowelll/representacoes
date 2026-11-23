@@ -53,7 +53,7 @@ export const DEFAULT_TEMPLATES: Record<Channel, { subject: string | null; body: 
 };
 
 /** Substitui {{variavel}}; variáveis desconhecidas ficam como estão para o usuário ver. */
-export function renderTemplate(text: string, vars: Partial<TemplateVars>): string {
+export function renderTemplate(text: string, vars: Partial<Record<string, string>>): string {
   return text.replace(/\{\{\s*([a-z_]+)\s*\}\}/g, (whole, key: string) => {
     const v = (vars as Record<string, string | undefined>)[key];
     return v != null && v !== "" ? v : whole;

@@ -7,9 +7,12 @@ import { formatCnpj } from "@/lib/validation/cnpj";
 import { CONTACT_PURPOSE_LABELS, ELIGIBILITY_REASON_LABELS, LEGAL_BASIS_LABELS, type ContactPurpose } from "@/lib/validation/schemas";
 import { Alert, EmptyState } from "@/components/ui";
 import { ContactForm, ContactRightsButtons } from "./contact-form";
-import { RefreshCnpjButton } from "./cnpj-section";
+import { RefreshCnpjButton } from "@/components/refresh-cnpj-button";
 import { fromRegistryRow, REGISTRY_COLUMNS, type RegistryRow } from "@/lib/cnpj/registry";
 import { ReceitaDetails } from "@/components/receita-details";
+import { ContactInfoView } from "@/components/contact-info-view";
+import { ContactInfoForm } from "@/components/contact-info-form";
+import { parseChannels } from "@/lib/cnpj/contact-info";
 import { IndustryMix } from "./industry-mix";
 
 export const metadata = { title: "Empresa · Rep360" };
@@ -23,7 +26,7 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
   const supabase = await createSupabaseServerClient();
   const { data: company } = await supabase
     .from("companies")
-    .select("id, legal_name, trade_name, cnpj, cnae, segment, state_code, municipality_id, kind, source, source_date")
+    .select("id, legal_name, trade_name, cnpj, cnae, segment, state_code, municipality_id, kind, source, source_date, website, website_source, contact_channels")
     .eq("tenant_id", tenantId)
     .eq("id", companyId)
     .maybeSingle();
@@ -74,6 +77,23 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
           <div><dt className="text-neutral-500">Origem do dado</dt><dd>{company.source ?? "—"}{company.source_date ? ` (${company.source_date})` : ""}</dd></div>
         </dl>
       </div>
+
+      <section aria-labelledby="canais" className="flex flex-col gap-3 rounded-lg border p-4">
+        <h2 id="canais" className="font-medium">
+          Site e canais de contato
+        </h2>
+        <ContactInfoView website={company.website} websiteSource={company.website_source} channels={parseChannels(company.contact_channels)} />
+        {writable && (
+          <details>
+            <summary className="cursor-pointer text-sm underline">Editar site e canais</summary>
+            <div className="mt-3">
+              <ContactInfoForm tenantId={tenantId} entity="company" id={company.id} website={company.website}
+                channels={parseChannels(company.contact_channels)} />
+            </div>
+          </details>
+        )}
+        <p className="text-xs text-neutral-500">Atualizar os dados da Receita não apaga nem altera o que está aqui.</p>
+      </section>
 
       <IndustryMix tenantId={tenantId} companyId={companyId} writable={writable} />
 

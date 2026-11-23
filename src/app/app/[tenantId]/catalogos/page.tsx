@@ -2,7 +2,9 @@ import { requireTenantPage } from "@/lib/auth/session";
 import { can } from "@/lib/auth/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Alert, EmptyState } from "@/components/ui";
+import Link from "next/link";
 import { CatalogUploadForm } from "./form";
+import { publishCatalogVersion } from "./actions";
 
 export const metadata = { title: "Catálogos · Rep360" };
 
@@ -16,11 +18,11 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
     supabase.from("industries").select("id, name").eq("tenant_id", tenantId).eq("active", true).order("name"),
     supabase
       .from("catalogs")
-      .select("id, title, category, industries(name), catalog_versions(version, status, storage_path, size_bytes, created_at)")
+      .select("id, title, category, industries(name), catalog_versions(id, version, status, storage_path, size_bytes, created_at)")
       .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false }),
   ]);
-  type Version = { version: number; status: keyof typeof STATUS; storage_path: string; size_bytes: number | null };
+  type Version = { id: string; version: number; status: keyof typeof STATUS; storage_path: string; size_bytes: number | null };
   type Row = { id: string; title: string; category: string | null; industries: { name: string } | null; catalog_versions: Version[] };
   const rows = (catalogs.data ?? []) as unknown as Row[];
 
@@ -70,6 +72,18 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
                     <a href={url} className="underline" target="_blank" rel="noopener noreferrer">
                       Abrir PDF
                     </a>
+                  )}
+                  {latest && latest.status === "draft" && can(ctx.role, "catalog.write") && (
+                    <form action={publishCatalogVersion}>
+                      <input type="hidden" name="tenant_id" value={tenantId} />
+                      <input type="hidden" name="version_id" value={latest.id} />
+                      <button className="rounded-md border px-3 py-1">Publicar</button>
+                    </form>
+                  )}
+                  {latest && latest.status === "published" && can(ctx.role, "deals.write") && (
+                    <Link href={`/app/${tenantId}/envios/novo?versao=${latest.id}`} className="rounded-md bg-blue-700 px-3 py-1 font-medium text-white">
+                      Enviar para clientes
+                    </Link>
                   )}
                 </span>
               </li>
