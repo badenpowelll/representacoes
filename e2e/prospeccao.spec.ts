@@ -92,7 +92,8 @@ test("prospecção: material hospitalar → tabela → carteira → WhatsApp e e
   await page.getByRole("button", { name: "Criar e ver empresas" }).click();
 
   // Só RN (território padrão) e só CNAEs do perfil: o hospital do CE não aparece.
-  await expect(page.getByText("2 empresa(s) encontradas")).toBeVisible();
+  await expect(page.getByText(/\d+ empresa\(s\) encontradas/)).toBeVisible();
+  await expect(page.getByRole("row", { name: /EXEMPLO/ })).toHaveCount(2);
   await expect(page.getByRole("cell", { name: /HOSPITAL EXEMPLO/ }).first()).toBeVisible();
   await expect(page.getByText("HOSPITAL EXEMPLO FORTALEZA LTDA")).toHaveCount(0);
   await expect(page.getByText("publicação 2026-10")).toBeVisible();

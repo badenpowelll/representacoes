@@ -55,3 +55,9 @@ Interface:
 - Validar migrations em um Supabase real (staging) — depende de ⛔.
 - Codex no GitHub requer environment em chatgpt.com/codex — decisão do proprietário.
 - Base legal LGPD: finalidades por contato já existem (prospecção, relacionamento, catálogos, atendimento); política por canal além de e-mail ainda a definir com o proprietário antes de campanhas.
+
+## Envio de catálogo em lote (23/11/2026)
+- [x] Modo assistido (grátis): catálogo publicado → escolher clientes → fila com mensagem editável; um clique por cliente abre mailto:/wa.me com link assinado do PDF (7/30/90 dias); elegibilidade conferida ao montar e de novo a cada envio; atividade registrada (idempotente).
+- [ ] Envio automático por e-mail pela conta Google Workspace da representação (API do Gmail, app OAuth interno; sem custo extra, limites diários do Workspace).
+- [ ] Link curto rastreável do catálogo (exige chave de serviço só no servidor).
+- [ ] WhatsApp oficial (Cloud API da Meta, cobrança por mensagem) — depende de decisão do Baden.
