@@ -42,3 +42,14 @@ A exclusão da representação apaga as consultas (cascade).
   necessário (mensagem amigável). Pendente: limite por tenant e fila se o volume crescer.
 - Pendente: provedor de reserva (ex.: outra fonte pública gratuita) caso a BrasilAPI fique
   instável; exclusão/retenção específica das consultas (hoje acompanham o tenant).
+
+## Adendo (23/11/2026) — site e canais de contato editáveis
+A pedido do proprietário ("me permitir editar site, telefone e e-mail; posso fazer
+pesquisas e encontrar algo"), indústrias e empresas têm `website` e `contact_channels`
+(lista de canais com tipo — telefone, WhatsApp, e-mail, endereço, outro —, rótulo livre
+como Comercial/Licitações/Financeiro, e origem `receita` ou `manual`). Ficam na própria
+entidade e **nunca** são alterados por uma nova consulta à Receita: a Receita só sugere
+telefones e e-mail no cadastro. A origem é recalculada no servidor ao salvar (igual ao
+dado da Receita → `receita`; senão `manual`). O banco valida o formato de cada canal
+(`app.valid_contact_channels`). Canais são institucionais; pessoas seguem em `contacts`,
+com base legal própria. Migration `20261123000200_contact_info.sql`.
