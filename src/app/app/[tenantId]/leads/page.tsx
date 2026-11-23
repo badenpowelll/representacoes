@@ -41,13 +41,17 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
       <div>
         <h1 className="text-2xl font-semibold">Leads e prospecção</h1>
         <p className="text-sm text-neutral-600 dark:text-neutral-400">
-          Registre apenas empresas reais, sempre com a fonte e a data em que o dado foi obtido.
+          Para encontrar empresas automaticamente pela atividade e pelo território, use a{" "}
+          <Link href={`/app/${tenantId}/prospeccao`} className="underline">
+            Prospecção automática
+          </Link>
+          . Aqui você acompanha os leads e cadastra à mão uma empresa que já conhece (pelo CNPJ), sempre com a fonte do dado.
         </p>
       </div>
       {crm && (
         <section aria-labelledby="novo-prospect" className="rounded-lg border p-4">
           <h2 id="novo-prospect" className="mb-4 font-medium">
-            Novo prospect
+            Cadastrar empresa que você já conhece
           </h2>
           {industries.data?.length ? (
             <ProspectForm tenantId={tenantId} industries={industries.data} today={today} />

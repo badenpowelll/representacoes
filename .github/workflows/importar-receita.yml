@@ -1,0 +1,52 @@
+name: Importar base da Receita (CNPJ)
+
+# Baixa os dados abertos do CNPJ da Receita Federal e grava o recorte usado pela
+# prospecção (UFs dos territórios × CNAEs-alvo das indústrias) no banco.
+# Manual por enquanto. Uso típico: 15 a 40 minutos de Actions por execução.
+# Precisa do segredo REP360_DATABASE_URL (conexão Postgres do Supabase de
+# TESTE, papel postgres). Nunca aponte para produção sem autorização.
+on:
+  workflow_dispatch:
+    inputs:
+      mes:
+        description: "Mês da publicação (AAAA-MM). Vazio = mais recente."
+        required: false
+      ufs:
+        description: "UFs separadas por vírgula. Vazio = UFs dos territórios cadastrados."
+        required: false
+      cnaes:
+        description: "CNAEs separados por vírgula. Vazio = CNAEs-alvo das indústrias."
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: importar-receita
+  cancel-in-progress: false
+
+jobs:
+  importar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Importar
+        env:
+          DATABASE_URL: ${{ secrets.REP360_DATABASE_URL }}
+          MES: ${{ inputs.mes }}
+          UFS: ${{ inputs.ufs }}
+          CNAES: ${{ inputs.cnaes }}
+        run: |
+          test -n "$DATABASE_URL" || { echo "Configure o segredo REP360_DATABASE_URL"; exit 1; }
+          set --
+          [ -n "$MES" ] && set -- "$@" --mes "$MES"
+          [ -n "$UFS" ] && set -- "$@" --ufs "$UFS"
+          [ -n "$CNAES" ] && set -- "$@" --cnaes "$CNAES"
+          node scripts/importar-receita-cnpj.mjs "$@"
