@@ -7,6 +7,8 @@ import { formatCnpj } from "@/lib/validation/cnpj";
 import { CONTACT_PURPOSE_LABELS, ELIGIBILITY_REASON_LABELS, LEGAL_BASIS_LABELS, type ContactPurpose } from "@/lib/validation/schemas";
 import { Alert, EmptyState } from "@/components/ui";
 import { ContactForm, ContactRightsButtons } from "./contact-form";
+import { RefreshCnpjButton } from "./cnpj-section";
+import { formatAddress, formatPhone, fromRegistryRow, isInactiveStatus, REGISTRY_COLUMNS, type RegistryRow } from "@/lib/cnpj/registry";
 
 export const metadata = { title: "Empresa · Rep360" };
 
@@ -25,7 +27,7 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
     .maybeSingle();
   if (!company) notFound();
 
-  const [contacts, eligibility, municipio] = await Promise.all([
+  const [contacts, eligibility, municipio, registry] = await Promise.all([
     supabase
       .from("contacts")
       .select("id, name, role_title, email, phone, legal_basis, purposes, consent_at, opted_out_at, source, source_date")
@@ -37,7 +39,11 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
     company.municipality_id
       ? supabase.from("ref_municipalities").select("name").eq("ibge_code", company.municipality_id).maybeSingle()
       : Promise.resolve({ data: null }),
+    company.cnpj
+      ? supabase.from("cnpj_registry").select(REGISTRY_COLUMNS).eq("tenant_id", tenantId).eq("cnpj", company.cnpj).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
   ]);
+  const receita = registry.data ? fromRegistryRow(registry.data as RegistryRow) : null;
   // Fail-closed: se a elegibilidade não puder ser calculada, ninguém é elegível.
   const eligibleById = new Map<string, { eligible: boolean; reason: string | null }>();
   if (!eligibility.error) {
@@ -57,6 +63,7 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
         </Link>
         <h1 className="mt-2 text-2xl font-semibold">{company.legal_name}</h1>
         <dl className="mt-3 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
+          {company.trade_name && <div><dt className="text-neutral-500">Nome fantasia</dt><dd>{company.trade_name}</dd></div>}
           <div><dt className="text-neutral-500">CNPJ</dt><dd>{company.cnpj ? formatCnpj(company.cnpj) : "—"}</dd></div>
           <div><dt className="text-neutral-500">CNAE</dt><dd>{company.cnae ?? "—"}</dd></div>
           <div><dt className="text-neutral-500">Localização</dt><dd>{[municipio.data?.name, company.state_code].filter(Boolean).join(" / ") || "—"}</dd></div>
@@ -65,6 +72,75 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
           <div><dt className="text-neutral-500">Origem do dado</dt><dd>{company.source ?? "—"}{company.source_date ? ` (${company.source_date})` : ""}</dd></div>
         </dl>
       </div>
+
+      {company.cnpj && (
+        <section aria-labelledby="receita" className="flex flex-col gap-3 rounded-lg border p-4">
+          <h2 id="receita" className="font-medium">
+            Dados da Receita Federal
+          </h2>
+          {registry.error && <Alert kind="error">Não foi possível carregar os dados da Receita.</Alert>}
+          {!registry.error && !receita && <p className="text-sm text-neutral-500">Este CNPJ ainda não foi consultado.</p>}
+          {receita && (
+            <>
+              {isInactiveStatus(receita.registrationStatus) && (
+                <Alert kind="error">
+                  Situação cadastral: {receita.registrationStatus}
+                  {receita.statusDate ? ` desde ${receita.statusDate}` : ""}
+                  {receita.statusReason ? ` (${receita.statusReason})` : ""}.
+                </Alert>
+              )}
+              <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
+                <div><dt className="text-neutral-500">Razão social</dt><dd>{receita.legalName}</dd></div>
+                <div><dt className="text-neutral-500">Nome fantasia</dt><dd>{receita.tradeName ?? "—"}</dd></div>
+                <div><dt className="text-neutral-500">Situação cadastral</dt><dd>{receita.registrationStatus ?? "—"}{receita.statusDate ? ` (${receita.statusDate})` : ""}</dd></div>
+                <div><dt className="text-neutral-500">Abertura</dt><dd>{receita.openedOn ?? "—"}</dd></div>
+                <div><dt className="text-neutral-500">Natureza jurídica</dt><dd>{receita.legalNature ?? "—"}</dd></div>
+                <div><dt className="text-neutral-500">Porte</dt><dd>{receita.companySize ?? "—"}</dd></div>
+                <div><dt className="text-neutral-500">Capital social</dt><dd>{receita.shareCapital == null ? "—" : receita.shareCapital.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</dd></div>
+                <div><dt className="text-neutral-500">Matriz ou filial</dt><dd>{receita.isHeadquarters == null ? "—" : receita.isHeadquarters ? "Matriz" : "Filial"}</dd></div>
+                <div><dt className="text-neutral-500">Simples / MEI</dt><dd>{[receita.simplesOptIn == null ? null : `Simples: ${receita.simplesOptIn ? "sim" : "não"}`, receita.meiOptIn == null ? null : `MEI: ${receita.meiOptIn ? "sim" : "não"}`].filter(Boolean).join(" · ") || "—"}</dd></div>
+                <div className="sm:col-span-3"><dt className="text-neutral-500">Endereço</dt><dd>{formatAddress(receita.address) || "—"}</dd></div>
+                <div><dt className="text-neutral-500">Telefones</dt><dd>{receita.phones.map(formatPhone).join(", ") || "—"}</dd></div>
+                <div className="sm:col-span-2"><dt className="text-neutral-500">E-mail</dt><dd>{receita.email ?? "—"}</dd></div>
+                <div className="sm:col-span-3"><dt className="text-neutral-500">CNAE principal</dt><dd>{receita.mainCnae ? `${receita.mainCnae} · ${receita.mainCnaeDescription ?? ""}` : "—"}</dd></div>
+              </dl>
+              {receita.secondaryCnaes.length > 0 && (
+                <details className="text-sm">
+                  <summary className="cursor-pointer">CNAEs secundários ({receita.secondaryCnaes.length})</summary>
+                  <ul className="mt-2 list-disc pl-5">
+                    {receita.secondaryCnaes.map((c) => (
+                      <li key={c.code}>{c.code} · {c.description}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+              <div className="text-sm">
+                <h3 className="font-medium">Quadro societário ({receita.partners.length})</h3>
+                {receita.partners.length === 0 ? (
+                  <p className="text-neutral-500">Nenhum sócio informado pela Receita.</p>
+                ) : (
+                  <ul className="mt-1 flex flex-col gap-1">
+                    {receita.partners.map((p, i) => (
+                      <li key={`${p.name}-${i}`}>
+                        <span className="font-medium">{p.name}</span>
+                        {[p.role, p.since ? `desde ${p.since}` : null, p.ageRange, p.document].filter(Boolean).map((x) => ` · ${x}`).join("")}
+                        {p.legalRepresentative ? ` · representante legal: ${p.legalRepresentative}` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="mt-1 text-xs text-neutral-500">
+                  Dados públicos da Receita Federal, usados só para qualificar a empresa. Sócios não viram contatos de prospecção automaticamente.
+                </p>
+              </div>
+              <p className="text-xs text-neutral-500">
+                Fonte: Receita Federal (dados abertos) via BrasilAPI · consultado em {new Date(receita.fetchedAt).toLocaleString("pt-BR")}
+              </p>
+            </>
+          )}
+          {writable && <RefreshCnpjButton tenantId={tenantId} cnpj={company.cnpj} label={receita ? "Atualizar dados da Receita" : "Buscar dados na Receita"} />}
+        </section>
+      )}
 
       {writable && (
         <section aria-labelledby="novo-contato" className="rounded-lg border p-4">

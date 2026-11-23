@@ -69,5 +69,6 @@ docs/               arquitetura, ADRs e backlog
 - Links de download de catálogos são URLs assinadas de 5 minutos: um link já emitido continua válido até expirar, mesmo que o acesso do usuário seja revogado nesse intervalo.
 - Upload de catálogo passa pela server action (arquivo em memória, até 50 MB). Antes de produção: upload resumível direto, quarentena e parser de PDF isolado (backlog).
 - Municípios: snapshot de 5.571 municípios com códigos IBGE (ver `supabase/reference/README.md`); ainda não conferido contra a API oficial do IBGE, sem acesso de rede neste ambiente.
+- Consulta de CNPJ: usa a BrasilAPI (gratuita) a partir do servidor; não foi chamada de verdade neste ambiente (rede bloqueada), só com servidor simulado no e2e (`CNPJ_API_BASE_URL`). Sem limite de consultas por representação ainda (ADR 0006).
 - Gmail, campanhas e agente de IA são Fases 2 e 3.
 - Validação contra um projeto Supabase real depende da criação de staging (decisão do proprietário).

@@ -95,6 +95,7 @@ export const territorySchema = z
 
 export const companySchema = z.object({
   legal_name: z.string().trim().min(2, "Informe a razão social").max(300),
+  trade_name: optionalText(300),
   cnpj: optionalCnpj,
   cnae: optionalText(7).refine((v) => v == null || /^\d{7}$/.test(v), { message: "CNAE deve ter 7 dígitos" }),
   segment: optionalText(120),
