@@ -10,7 +10,7 @@ export function Field({
   const describedBy = [error ? `${name}-erro` : null, hint ? `${name}-dica` : null].filter(Boolean).join(" ") || undefined;
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={name} className="text-sm font-medium">
+      <label htmlFor={name} className="text-sm font-medium text-argos-navy">
         {label}
       </label>
       <input
@@ -18,7 +18,7 @@ export function Field({
         name={name}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
-        className="rounded-md border border-neutral-300 bg-transparent px-3 py-2 focus:outline-2 focus:outline-blue-600 dark:border-neutral-700"
+        className="w-full rounded-[10px] px-3 py-2"
         {...props}
       />
       {hint && (
@@ -38,7 +38,7 @@ export function Field({
 export function Button({ children, ...props }: ComponentProps<"button">) {
   return (
     <button
-      className="rounded-md bg-blue-700 px-4 py-2 font-medium text-white hover:bg-blue-800 disabled:opacity-60"
+      className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[10px] bg-argos-orange px-5 py-2 font-semibold text-argos-navy shadow-sm transition-colors hover:bg-[#e65400] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-argos-navy disabled:cursor-not-allowed disabled:opacity-60"
       {...props}
     >
       {children}
@@ -48,12 +48,12 @@ export function Button({ children, ...props }: ComponentProps<"button">) {
 
 export function Alert({ kind, children }: { kind: "error" | "success" | "info"; children: ReactNode }) {
   const styles = {
-    error: "border-red-300 bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-200",
-    success: "border-green-300 bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-200",
-    info: "border-blue-300 bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200",
+    error: "border-argos-rust/30 border-l-argos-rust bg-[#fdeee9] text-[#7f1b00]",
+    success: "border-green-300 border-l-green-700 bg-green-50 text-green-900",
+    info: "border-argos-tint-navy border-l-argos-navy bg-[#eef1f7] text-argos-navy",
   }[kind];
   return (
-    <div role={kind === "error" ? "alert" : "status"} className={`rounded-md border px-3 py-2 text-sm ${styles}`}>
+    <div role={kind === "error" ? "alert" : "status"} className={`rounded-[10px] border border-l-4 px-4 py-3 text-sm ${styles}`}>
       {children}
     </div>
   );
@@ -61,8 +61,11 @@ export function Alert({ kind, children }: { kind: "error" | "success" | "info"; 
 
 export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
   return (
-    <div className="rounded-lg border border-dashed border-neutral-300 p-8 text-center dark:border-neutral-700">
-      <p className="font-medium">{title}</p>
+    <div className="flex flex-col items-center rounded-[14px] border border-dashed border-neutral-300 bg-white/60 px-6 py-10 text-center">
+      <span aria-hidden="true" className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-argos-tint-orange text-lg text-[#c84a00]">
+        ◎
+      </span>
+      <p className="font-semibold text-argos-navy">{title}</p>
       {children && <div className="mt-2 text-sm text-neutral-500">{children}</div>}
     </div>
   );

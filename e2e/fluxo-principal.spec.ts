@@ -221,7 +221,9 @@ test("convite: admin gera link, convidado se cadastra e entra com o papel defini
   await expect(guest).toHaveURL(/\/convite\//);
   await guest.getByRole("button", { name: "Aceitar convite" }).click();
   await expect(guest).toHaveURL(tenantUrl);
-  await expect(guest.getByText("Gama Representações · Representante")).toBeVisible();
+  // Cabeçalho mostra a representação e o papel do usuário
+  await expect(guest.getByRole("banner").getByText("Gama Representações", { exact: true })).toBeVisible();
+  await expect(guest.getByRole("banner").getByText("Representante", { exact: true })).toBeVisible();
 
   // Reutilizar o link falha
   await guest.goto(link);
