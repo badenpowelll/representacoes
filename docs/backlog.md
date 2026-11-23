@@ -46,6 +46,10 @@ Interface:
 - ⏳ Envio em massa: e-mail via Gmail OAuth (Fase 2) e WhatsApp Cloud API (custo por mensagem — decisão do proprietário)
 - ✅ Parecer 004-complemento (P1): abrangência territorial explícita; oposição e exclusão por RPC com auditoria; elegibilidade de contatos (`contact_eligibility`) e de produtos (`product_eligibility`) no servidor, fail-closed; base legal sem padrão, com finalidade, justificativa e evidência; preço com origem, referência, responsável, data e histórico
 - ⏳ P2 do parecer 004-complemento: verificação IBGE no CI, direitos do titular (exportação), retenção da supressão, centavos inteiros, paginação de produtos, erros em toggleProduct
+- ✅ Produtos sincronizados pelo site da indústria (ADR 0008): fontes por indústria, robô diário no GitHub Actions com robots.txt, novo entra sem preço, o que sai fica inativo, fichas FT/FDS e novidades dos 7 dias
+- ✅ Modo "vigiar página" para sites sem lista de produtos (ex.: Petribu)
+- ⏳ Leitura de produtos de catálogo PDF (ex.: PROC9)
+- ⏳ Compartilhar produtos com o cliente e receber pedidos
 - ⏳ Importação de produtos em lote (planilha)
 - ✅ Municípios do IBGE: snapshot CSV versionado com data e sha256, migration gerada por script
 - ✅ Workflow manual de E2E (`workflow_dispatch`), ainda não disparado
