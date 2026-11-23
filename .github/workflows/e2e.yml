@@ -1,0 +1,51 @@
+name: E2E (manual)
+
+# Executado somente sob demanda (Actions → "E2E (manual)" → Run workflow).
+# Sobe a stack Supabase local via Docker no runner (~5-8 min), roda os testes
+# de integração (Auth/PostgREST/Storage reais) e os e2e Playwright.
+# Não usa segredos nem serviços externos: tudo roda dentro do runner.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Supabase local
+        run: npx supabase start -x studio,imgproxy,vector,logflare,realtime,edge-runtime,supavisor,postgres-meta
+      - name: Variáveis do ambiente local (chaves de desenvolvimento geradas pela CLI)
+        run: |
+          eval "$(npx supabase status -o env | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=')"
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY"
+            echo "SUPABASE_TEST_URL=$API_URL"
+            echo "SUPABASE_TEST_ANON_KEY=$ANON_KEY"
+            echo "SUPABASE_TEST_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+            echo "APP_URL=http://localhost:3000"
+          } >> "$GITHUB_ENV"
+      - run: pnpm exec vitest run --project integration
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm exec playwright test --trace retain-on-failure
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: test-results/
+          retention-days: 7
