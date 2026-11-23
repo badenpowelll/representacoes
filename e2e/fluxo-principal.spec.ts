@@ -358,6 +358,42 @@ test("compatibilidade: calcula score explicável e aprovação gera lead", async
   await expect(page.locator("div").filter({ hasText: /^Leads1$/ })).toBeVisible();
 });
 
+test("catálogos: sem indústria cadastrada, cria a indústria no próprio envio", async ({ browser }) => {
+  const page = await (await browser.newContext()).newPage();
+  await signUpAndConfirm(page, "Hilda Admin", `hilda-${run}@teta.test`, `Senha-forte-${run}`);
+  await createTenant(page, "Teta Representações", `teta-${run}`);
+  await page.getByRole("link", { name: "Catálogos" }).click();
+  await expect(page.getByText("Cadastre uma indústria antes")).toHaveCount(0);
+  // Sem indústrias, o formulário já abre em "nova indústria".
+  await expect(page.getByLabel("Indústria", { exact: true })).toHaveValue("nova");
+  await page.getByLabel("Título").fill("Linha Verão");
+  const pdf = { name: "verao.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF") };
+  await page.getByLabel("Arquivo PDF").setInputFiles(pdf);
+  await page.getByRole("button", { name: "Enviar catálogo" }).click();
+  await expect(page.getByText("Informe o nome da indústria")).toBeVisible();
+
+  await page.getByLabel("Nome da indústria").fill("Têxtil Teta");
+  await page.getByLabel("Arquivo PDF").setInputFiles(pdf);
+  await page.getByRole("button", { name: "Enviar catálogo" }).click();
+  await expect(page.getByText("Indústria cadastrada e catálogo enviado como rascunho.")).toBeVisible();
+  await expect(page.getByRole("listitem").filter({ hasText: "Linha Verão" })).toContainText("Têxtil Teta");
+
+  // Nome repetido não duplica a indústria: pede para escolher na lista.
+  await page.getByLabel("Indústria", { exact: true }).selectOption("nova");
+  await page.getByLabel("Nome da indústria").fill("têxtil teta");
+  await page.getByLabel("Título").fill("Linha Inverno");
+  await page.getByLabel("Arquivo PDF").setInputFiles(pdf);
+  await page.getByRole("button", { name: "Enviar catálogo" }).click();
+  await expect(page.getByText("Já existe uma indústria com esse nome ou CNPJ")).toBeVisible();
+  await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Têxtil Teta" });
+  await page.getByLabel("Arquivo PDF").setInputFiles(pdf);
+  await page.getByRole("button", { name: "Enviar catálogo" }).click();
+  await expect(page.getByText("Catálogo enviado como rascunho.")).toBeVisible();
+
+  await page.getByRole("link", { name: "Indústrias" }).click();
+  await expect(page.getByRole("cell", { name: "Têxtil Teta" })).toHaveCount(1);
+});
+
 test("catálogos: envia PDF privado, rejeita arquivo que não é PDF", async ({ browser }) => {
   const page = await (await browser.newContext()).newPage();
   await signUpAndConfirm(page, "Gil Admin", `gil-${run}@zeta.test`, `Senha-forte-${run}`);
