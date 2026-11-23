@@ -1,9 +1,12 @@
+import { Fragment } from "react";
 import { requireTenantPage } from "@/lib/auth/session";
 import { can } from "@/lib/auth/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatCnpj } from "@/lib/validation/cnpj";
 import { Alert, EmptyState } from "@/components/ui";
 import { IndustryForm } from "../forms";
+import { ReceitaDetails } from "@/components/receita-details";
+import { fromRegistryRow, REGISTRY_COLUMNS, type RegistryRow } from "@/lib/cnpj/registry";
 
 export const metadata = { title: "Indústrias · Rep360" };
 
@@ -16,6 +19,11 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
     .select("id, name, cnpj, segment, website, active")
     .eq("tenant_id", tenantId)
     .order("name");
+  const cnpjs = (data ?? []).map((i) => i.cnpj).filter((c): c is string => Boolean(c));
+  const { data: registry } = cnpjs.length
+    ? await supabase.from("cnpj_registry").select(REGISTRY_COLUMNS).eq("tenant_id", tenantId).in("cnpj", cnpjs)
+    : { data: [] };
+  const receitaByCnpj = new Map((registry ?? []).map((r) => [r.cnpj as string, fromRegistryRow(r as RegistryRow)]));
 
   return (
     <div className="flex flex-col gap-8">
@@ -44,8 +52,11 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
               </tr>
             </thead>
             <tbody>
-              {data.map((i) => (
-                <tr key={i.id} className="border-b">
+              {data.map((i) => {
+                const receita = i.cnpj ? receitaByCnpj.get(i.cnpj) : undefined;
+                return (
+                <Fragment key={i.id}>
+                <tr className={receita ? "" : "border-b"}>
                   <td className="py-2 pr-4 font-medium">{i.name}</td>
                   <td className="py-2 pr-4">{i.cnpj ? formatCnpj(i.cnpj) : "—"}</td>
                   <td className="py-2 pr-4">{i.segment ?? "—"}</td>
@@ -59,7 +70,21 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
                     )}
                   </td>
                 </tr>
-              ))}
+                {receita && (
+                  <tr className="border-b">
+                    <td colSpan={4} className="pb-3">
+                      <details>
+                        <summary className="cursor-pointer text-sm underline">Dados da Receita Federal de {i.name}</summary>
+                        <div className="mt-2">
+                          <ReceitaDetails data={receita} />
+                        </div>
+                      </details>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>

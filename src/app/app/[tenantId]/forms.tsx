@@ -32,7 +32,8 @@ export function IndustryForm({ tenantId }: { tenantId: string }) {
       <Field label="Segmento" name="segment"
         defaultValue={state.values?.segment} error={state.fieldErrors?.segment} />
       <Field label="Site" name="website"
-        defaultValue={state.values?.website} type="url" placeholder="https://" error={state.fieldErrors?.website} />
+        defaultValue={state.values?.website} type="url" placeholder="https://" error={state.fieldErrors?.website}
+        hint="A Receita não informa o site; preencha se souber." />
       <div>
         <SubmitButton>Cadastrar indústria</SubmitButton>
       </div>

@@ -123,6 +123,9 @@ test("CNPJ preenche empresa, prospecção e indústria; ficha mostra sócios e e
   await page.getByLabel("Nome", { exact: true }).fill("Exemplo Indústria");
   await page.getByRole("button", { name: "Cadastrar indústria" }).click();
   await expect(page.getByRole("cell", { name: "Exemplo Indústria" })).toBeVisible();
+  await page.getByText("Dados da Receita Federal de Exemplo Indústria").click();
+  await expect(page.getByText("RUA DAS FLORES, 100 · CENTRO · NATAL/RN · CEP 59000-000")).toBeVisible();
+  await expect(page.getByText("FULANA DE TAL")).toBeVisible();
 
   // Empresa: tudo preenchido, inclusive UF e município; o que o usuário digitou é preservado
   await page.getByRole("link", { name: "Empresas" }).click();
