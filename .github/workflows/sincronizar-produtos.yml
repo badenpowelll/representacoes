@@ -1,0 +1,44 @@
+name: Sincronizar produtos (site das indústrias)
+
+# Lê a página de produtos de cada fonte cadastrada em Produtos > Sites das
+# indústrias e atualiza o cadastro: produto novo entra (sem preço), o que saiu
+# do site fica inativo. Respeita o robots.txt de cada site. Ver ADR 0008.
+# Uso típico: 3 a 10 minutos de Actions por dia. Agendamentos só rodam a partir
+# da branch padrão (main). Precisa do segredo REP360_DATABASE_URL (Supabase de
+# TESTE, papel postgres). Nunca aponte para produção sem autorização.
+on:
+  schedule:
+    - cron: "0 9 * * *" # 06h em Brasília
+  workflow_dispatch:
+    inputs:
+      fonte:
+        description: "ID de uma fonte (vazio = todas as ativas)"
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sincronizar-produtos
+  cancel-in-progress: false
+
+jobs:
+  sincronizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Sincronizar
+        env:
+          DATABASE_URL: ${{ secrets.REP360_DATABASE_URL }}
+          FONTE: ${{ inputs.fonte }}
+        run: |
+          test -n "$DATABASE_URL" || { echo "Configure o segredo REP360_DATABASE_URL"; exit 1; }
+          if [ -n "$FONTE" ]; then node scripts/sincronizar-produtos.mjs --fonte "$FONTE"; else node scripts/sincronizar-produtos.mjs; fi
