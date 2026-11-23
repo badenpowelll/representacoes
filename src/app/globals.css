@@ -1,19 +1,284 @@
 @import "tailwindcss";
 
+/*
+ * Identidade visual Argos Soluções (Brand Guidelines ago/2026 + Argos Design System 2.0).
+ * Ver docs/adr/0007-identidade-visual-argos.md.
+ *
+ * Estratégia: tokens da marca + remapeamento da paleta do Tailwind + estilos base de
+ * elementos (tabelas, campos, cartões). Assim as telas existentes ganham a identidade
+ * sem precisar ser reescritas, e as classes utilitárias continuam valendo por cima.
+ */
+
+/* Tema claro por padrão: as variantes dark: só valem com data-theme="dark" em <html>
+   (o tema escuro da marca ainda não foi homologado). */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Cores oficiais (não alterar) */
+  --argos-navy: #000f37;
+  --argos-orange: #ff5d00;
+  --argos-white: #ffffff;
+  --argos-gray: #d1d2d2;
+  --argos-rust: #b02500;
+  --argos-tint-orange: #ffe7d6;
+  --argos-tint-navy: #dde2ec;
+
+  /* Semânticos (Argos Design System 2.0, tema claro) */
+  --ads-color-background: #f5f7fa;
+  --ads-color-surface: #ffffff;
+  --ads-color-surface-muted: #eef1f6;
+  --ads-color-foreground: var(--argos-navy);
+  --ads-color-foreground-muted: #48566f;
+  --ads-color-border: #e1e4ea;
+  --ads-color-border-control: #7a8499; /* >= 3:1 sobre branco */
+  --ads-color-focus: #245dcc;
+  --ads-color-primary: var(--argos-orange);
+  --ads-color-on-primary: var(--argos-navy); /* branco sobre laranja = 3,1:1: não usar em texto */
+  --ads-shadow-card: 0 1px 2px rgba(0, 15, 55, 0.04), 0 8px 28px rgba(0, 15, 55, 0.06);
+  --ads-radius-md: 10px;
+  --ads-radius-lg: 14px;
+
+  --background: var(--ads-color-background);
+  --foreground: var(--ads-color-foreground);
+  color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@theme inline {
+  --font-sans: var(--font-inter), "Argos Sans", Inter, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+
+  --color-argos-navy: var(--argos-navy);
+  --color-argos-orange: var(--argos-orange);
+  --color-argos-gray: var(--argos-gray);
+  --color-argos-rust: var(--argos-rust);
+  --color-argos-tint-orange: var(--argos-tint-orange);
+  --color-argos-tint-navy: var(--argos-tint-navy);
+  --color-surface: var(--ads-color-surface);
+  --color-surface-muted: var(--ads-color-surface-muted);
+  --color-muted: var(--ads-color-foreground-muted);
+}
+
+@theme {
+  /* "Azul" das telas vira o azul-marinho da marca. */
+  --color-blue-50: #eef1f7;
+  --color-blue-300: #9aa6c2;
+  --color-blue-400: #8db4ff;
+  --color-blue-600: #245dcc;
+  --color-blue-700: #000f37;
+  --color-blue-800: #1a2a55;
+  --color-blue-950: #07132b;
+
+  /* Neutros levemente azulados, em harmonia com o navy. */
+  --color-neutral-50: #f5f7fa;
+  --color-neutral-100: #eef1f6;
+  --color-neutral-200: #e1e4ea;
+  --color-neutral-300: #c9ced8;
+  --color-neutral-400: #9aa3b5;
+  --color-neutral-500: #5a6680; /* texto auxiliar, 5,9:1 sobre branco */
+  --color-neutral-600: #48566f;
+  --color-neutral-700: #34415a;
+  --color-neutral-800: #1f2b45;
+  --color-neutral-900: #101c36;
+  --color-neutral-950: #07132b;
+
+  /* Erros e alertas no terracota (Argos Rust). */
+  --color-red-600: #b02500;
+  --color-red-700: #9a2000;
+  --color-red-800: #7f1b00;
+}
+
+@layer base {
+  /* Tailwind 4 usa currentColor como borda padrão; a marca pede divisórias suaves. */
+  *,
+  ::before,
+  ::after,
+  ::backdrop {
+    border-color: var(--ads-color-border);
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  html {
+    background: var(--background);
+  }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    line-height: 1.4; /* corpo: entrelinha 140% */
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    color: var(--argos-navy);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+  }
+  h1 {
+    font-weight: 700;
+  }
+  h2,
+  h3 {
+    font-weight: 600;
+  }
+
+  a {
+    text-underline-offset: 3px;
+  }
+  a[class~="underline"],
+  button[class~="underline"] {
+    text-decoration-color: color-mix(in srgb, var(--argos-orange) 70%, transparent);
+    text-decoration-thickness: 1.5px;
+  }
+  a[class~="underline"]:hover,
+  button[class~="underline"]:hover {
+    color: #c84a00;
+  }
+
+  ::selection {
+    background: var(--argos-tint-orange);
+    color: var(--argos-navy);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ads-color-focus);
+    outline-offset: 2px;
+  }
+
+  /* Campos de formulário */
+  input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="file"], [type="range"], [type="color"]),
+  select,
+  textarea {
+    min-height: 42px;
+    border: 1px solid var(--ads-color-border-control);
+    border-radius: var(--ads-radius-md);
+    background-color: var(--ads-color-surface);
+    color: var(--ads-color-foreground);
+    padding-inline: 12px;
+    transition:
+      border-color 0.15s,
+      box-shadow 0.15s;
+  }
+  textarea {
+    padding-block: 10px;
+  }
+  select {
+    padding-inline: 10px 6px;
+  }
+  input[type="file"] {
+    font-size: 0.875rem;
+  }
+  input[type="file"]::file-selector-button {
+    margin-right: 12px;
+    border: 1px solid var(--ads-color-border-control);
+    border-radius: 8px;
+    background: var(--ads-color-surface);
+    color: var(--argos-navy);
+    padding: 6px 12px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  input:not([type="checkbox"], [type="radio"]):hover,
+  select:hover,
+  textarea:hover {
+    border-color: #4d5872;
+  }
+  input:not([type="checkbox"], [type="radio"]):focus,
+  select:focus,
+  textarea:focus {
+    outline: none;
+    border-color: var(--argos-navy);
+    box-shadow: 0 0 0 3px rgba(36, 93, 204, 0.25);
+  }
+  input[aria-invalid="true"],
+  select[aria-invalid="true"],
+  textarea[aria-invalid="true"] {
+    border-color: var(--argos-rust);
+  }
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--argos-navy);
+    width: 1rem;
+    height: 1rem;
+  }
+  label {
+    color: var(--argos-navy);
+  }
+
+  /* Botões secundários (classe "border" nas telas) */
+  button[class~="border"] {
+    background: var(--ads-color-surface);
+    border-color: var(--ads-color-border-control);
+    color: var(--argos-navy);
+    font-weight: 500;
+    min-height: 36px;
+    cursor: pointer;
+    transition: background-color 0.15s;
+  }
+  button[class~="border"]:hover:not(:disabled) {
+    background: var(--argos-tint-navy);
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  /* Cartões e seções com borda viram superfícies brancas com sombra suave */
+  main :where([class~="rounded-lg"][class~="border"]),
+  main :where(li[class~="rounded-md"][class~="border"]) {
+    background-color: var(--ads-color-surface);
+    box-shadow: var(--ads-shadow-card);
+  }
+  main :where(section[class~="rounded-lg"][class~="border"], form[class~="rounded-lg"][class~="border"]) {
+    border-radius: var(--ads-radius-lg);
+  }
+
+  /* Tabelas */
+  main :where(div:has(> table)) {
+    background: var(--ads-color-surface);
+    border: 1px solid var(--ads-color-border);
+    border-radius: var(--ads-radius-lg);
+    box-shadow: var(--ads-shadow-card);
+  }
+  main :where(table) {
+    font-variant-numeric: tabular-nums;
+  }
+  main :where(thead) {
+    background: var(--ads-color-surface-muted);
+  }
+  main :where(th) {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ads-color-foreground-muted);
+    padding-block: 10px;
+    white-space: nowrap;
+  }
+  main :where(th, td):first-child {
+    padding-left: 16px;
+  }
+  main :where(th, td):last-child {
+    padding-right: 16px;
+  }
+  main :where(td) {
+    padding-block: 12px;
+    vertical-align: top;
+  }
+  main :where(tbody tr) {
+    transition: background-color 0.1s;
+  }
+  main :where(tbody tr:hover) {
+    background: #f8f9fc;
+  }
+  main :where(tbody tr:last-child) {
+    border-bottom-color: transparent;
+  }
+
+  /* Listas de definição (indicadores) */
+  main :where(dt) {
+    color: var(--ads-color-foreground-muted);
+  }
+  main :where(dd) {
+    color: var(--argos-navy);
+  }
 }
