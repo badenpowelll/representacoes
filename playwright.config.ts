@@ -22,5 +22,12 @@ export default defineConfig({
   },
   webServer: process.env.E2E_BASE_URL
     ? undefined
-    : { command: "pnpm start -p 3000", url: "http://localhost:3000", reuseExistingServer: true, timeout: 60_000 },
+    : {
+        command: "pnpm start -p 3000",
+        url: "http://localhost:3000",
+        reuseExistingServer: true,
+        timeout: 60_000,
+        // Consulta de CNPJ vai para o servidor simulado do e2e (ver e2e/cnpj-autopreenchimento.spec.ts).
+        env: { CNPJ_API_BASE_URL: process.env.CNPJ_API_BASE_URL ?? "http://127.0.0.1:4010/" },
+      },
 });

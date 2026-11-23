@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isValidCnpj, normalizeCnpj } from "./cnpj";
+import { contactInfoSchema } from "@/lib/cnpj/contact-info";
 
 const optionalText = (max: number) =>
   z
@@ -37,9 +38,7 @@ export const industrySchema = z.object({
   name: z.string().trim().min(2, "Informe o nome da indústria").max(200),
   cnpj: optionalCnpj,
   segment: optionalText(120),
-  website: optionalText(300).refine((v) => v == null || /^https?:\/\//i.test(v), {
-    message: "O site deve começar com http:// ou https://",
-  }),
+  ...contactInfoSchema.shape,
 });
 
 /** Código IBGE de município (7 dígitos) opcional, vindo de um <select>. */
@@ -95,6 +94,7 @@ export const territorySchema = z
 
 export const companySchema = z.object({
   legal_name: z.string().trim().min(2, "Informe a razão social").max(300),
+  trade_name: optionalText(300),
   cnpj: optionalCnpj,
   cnae: optionalText(7).refine((v) => v == null || /^\d{7}$/.test(v), { message: "CNAE deve ter 7 dígitos" }),
   segment: optionalText(120),
@@ -102,6 +102,7 @@ export const companySchema = z.object({
   municipality_id: optionalMunicipality,
   kind: z.enum(["customer", "prospect"]).default("prospect"),
   source: z.string().trim().min(2, "Informe a origem do dado (LGPD)").max(300),
+  ...contactInfoSchema.shape,
 });
 
 export const DEAL_STAGES = ["new", "qualified", "contact", "negotiation", "proposal", "won", "lost"] as const;
