@@ -178,8 +178,10 @@ test("importa clientes pelo CNPJ e tabela de preços sem duplicar", async ({ bro
   await page.getByRole("button", { name: "Cadastrar indústria" }).click();
   await expect(page.getByRole("cell", { name: "Indústria Preço Teste" })).toBeVisible();
 
+  // Na tela Produtos: escolhe a indústria no "Novo produto" e vai à importação já com ela
   await page.getByRole("link", { name: "Produtos" }).click();
-  await page.getByRole("link", { name: "Importar planilha de produtos e preços" }).click();
+  await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Indústria Preço Teste" });
+  await page.getByRole("link", { name: "Importar planilha Excel ou CSV desta indústria" }).click();
   const tabela = (preco: string) =>
     csv([
       ["TABELA DE PREÇOS NOVEMBRO", "", "", ""],
@@ -191,7 +193,7 @@ test("importa clientes pelo CNPJ e tabela de preços sem duplicar", async ({ bro
   await page.getByLabel("Planilha").setInputFiles({ name: "Tabela Nov 2026.csv", mimeType: "text/csv", buffer: tabela("29,90") });
   await expect(page.getByLabel("Linha do cabeçalho")).toHaveValue("2");
   await expect(page.getByLabel("Campo para a coluna Caixa", { exact: true })).toHaveValue("__extra");
-  await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Indústria Preço Teste" });
+  await expect(page.getByLabel("Indústria", { exact: true }).locator("option:checked")).toHaveText("Indústria Preço Teste");
   await expect(page.getByLabel("Referência do documento")).toHaveValue("Tabela Nov 2026");
   await page.getByLabel("Vigência quando a linha não informar").fill("2099-12-31");
   await page.getByRole("button", { name: "Conferir antes de importar" }).click();

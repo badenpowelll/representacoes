@@ -1,5 +1,6 @@
 "use client";
-import { useActionState } from "react";
+import Link from "next/link";
+import { useActionState, useState } from "react";
 import { Alert, Field } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { initialState } from "@/lib/action-state";
@@ -19,6 +20,7 @@ export function ProductForm({
   const [state, action] = useActionState(createProduct, initialState);
   const v = state.values ?? {};
   const e = state.fieldErrors ?? {};
+  const [industry, setIndustry] = useState(v.industry_id ?? "");
   return (
     <form key={state.nonce} action={action} className="grid gap-4 sm:grid-cols-3" noValidate>
       <input type="hidden" name="tenant_id" value={tenantId} />
@@ -27,7 +29,7 @@ export function ProductForm({
         <label htmlFor="industry_id" className="text-sm font-medium">
           Indústria
         </label>
-        <select id="industry_id" name="industry_id" className={sel} defaultValue={v.industry_id ?? ""}>
+        <select id="industry_id" name="industry_id" className={sel} defaultValue={v.industry_id ?? ""} onChange={(ev) => setIndustry(ev.target.value)}>
           <option value="">Selecione</option>
           {industries.map((i) => (
             <option key={i.id} value={i.id}>
@@ -65,6 +67,12 @@ export function ProductForm({
       <div className="self-end">
         <SubmitButton>Cadastrar produto</SubmitButton>
       </div>
+      <p className="text-sm sm:col-span-3">
+        Muitos produtos de uma vez?{" "}
+        <Link href={`/app/${tenantId}/produtos/importar${industry ? `?industria=${industry}` : ""}`} className="font-medium underline">
+          Importar planilha Excel ou CSV{industry ? " desta indústria" : ""}
+        </Link>
+      </p>
     </form>
   );
 }

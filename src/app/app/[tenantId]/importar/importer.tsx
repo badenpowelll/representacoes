@@ -21,6 +21,8 @@ type Props = {
   backHref: string;
   industries?: { id: string; name: string }[];
   versions?: { id: string; label: string; industryId: string }[];
+  /** Indústria já escolhida na tela de Produtos. */
+  initialIndustryId?: string;
 };
 
 type Loaded = { fileName: string; sha256: string | null; sheets: SheetGrid[] };
@@ -98,7 +100,7 @@ export function TemplateButtons({ kind }: { kind: ImportKind }) {
   );
 }
 
-export function Importer({ tenantId, kind, backHref, industries = [], versions = [] }: Props) {
+export function Importer({ tenantId, kind, backHref, industries = [], versions = [], initialIndustryId }: Props) {
   const fields = FIELDS[kind];
   const [step, setStep] = useState<Step>("file");
   const [loaded, setLoaded] = useState<Loaded | null>(null);
@@ -120,7 +122,7 @@ export function Importer({ tenantId, kind, backHref, industries = [], versions =
   const [purposes, setPurposes] = useState<ContactPurpose[]>(["customer_relationship", "catalog_distribution"]);
   const [enrich, setEnrich] = useState(true);
   const [existingMode, setExistingMode] = useState<"fill" | "skip" | "update">(kind === "companies" ? "fill" : "update");
-  const [industryId, setIndustryId] = useState(industries.length === 1 ? industries[0].id : "");
+  const [industryId, setIndustryId] = useState(initialIndustryId ?? (industries.length === 1 ? industries[0].id : ""));
   const [versionId, setVersionId] = useState("");
   const [priceReference, setPriceReference] = useState("");
   const [defaultValidUntil, setDefaultValidUntil] = useState("");

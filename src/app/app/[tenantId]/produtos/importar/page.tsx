@@ -8,8 +8,15 @@ import { ImportHistory } from "../../importar/history";
 
 export const metadata = { title: "Importar tabela de preços · Rep360" };
 
-export default async function Page({ params }: { params: Promise<{ tenantId: string }> }) {
+export default async function Page({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ tenantId: string }>;
+  searchParams: Promise<{ industria?: string }>;
+}) {
   const { tenantId } = await params;
+  const { industria } = await searchParams;
   const ctx = await requireTenantPage(tenantId);
   const base = `/app/${tenantId}/produtos`;
   const supabase = await createSupabaseServerClient();
@@ -42,7 +49,8 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
           <Link href={`/app/${tenantId}/industrias`} className="underline">Ir para Indústrias</Link>
         </EmptyState>
       ) : (
-        <Importer tenantId={tenantId} kind="products" backHref={base} industries={industries.data ?? []} versions={versionList} />
+        <Importer tenantId={tenantId} kind="products" backHref={base} industries={industries.data ?? []} versions={versionList}
+          initialIndustryId={(industries.data ?? []).some((i) => i.id === industria) ? industria : undefined} />
       )}
       <ImportHistory tenantId={tenantId} kind="products" />
     </div>
