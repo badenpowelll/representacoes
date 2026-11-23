@@ -1,6 +1,7 @@
 import { createServer, type Server } from "node:http";
 import { expect, test, type Page } from "@playwright/test";
 import { totp } from "../tests/support/totp";
+import { openMenu } from "./menu";
 
 /*
  * Preenchimento automático por CNPJ. O app consulta a "Receita" num servidor
@@ -116,13 +117,13 @@ test("CNPJ preenche empresa, prospecção e indústria; ficha mostra sócios e e
   await createTenant(page, "Zeta Representações", `zeta-${run}`);
 
   // Indústria: o nome vem do nome fantasia
-  await page.getByRole("link", { name: "Indústrias" }).click();
+  await openMenu(page, "Indústrias");
   await page.getByLabel("CNPJ").fill("11.444.777/0001-61");
   await expect(page.getByLabel("Nome", { exact: true })).toHaveValue("CASA EXEMPLO");
   await expect(page.getByLabel("Segmento")).toHaveValue("Comércio varejista de ferragens e ferramentas");
   await page.getByLabel("Nome", { exact: true }).fill("Exemplo Indústria");
   await page.getByRole("button", { name: "Cadastrar indústria" }).click();
-  await expect(page.getByRole("cell", { name: "Exemplo Indústria" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Exemplo Indústria" })).toBeVisible();
   await page.getByText("Dados da Receita Federal de Exemplo Indústria").click();
   await expect(page.getByText("RUA DAS FLORES, 100 · CENTRO · NATAL/RN · CEP 59000-000")).toBeVisible();
   await expect(page.getByText("FULANA DE TAL")).toBeVisible();
@@ -153,7 +154,7 @@ test("CNPJ preenche empresa, prospecção e indústria; ficha mostra sócios e e
   await expect(canais).toContainText("(84) 99999-0000");
 
   // Empresa: tudo preenchido, inclusive UF e município; o que o usuário digitou é preservado
-  await page.getByRole("link", { name: "Empresas" }).click();
+  await openMenu(page, "Empresas");
   await page.getByLabel("Origem do dado").fill("indicação");
   await page.getByLabel("CNPJ").fill(CNPJ);
   await expect(page.getByLabel("Razão social")).toHaveValue("MATERIAIS EXEMPLO LTDA");
@@ -176,7 +177,7 @@ test("CNPJ preenche empresa, prospecção e indústria; ficha mostra sócios e e
 
   // Prospecção: fonte "Receita Federal" preenchida (usa a consulta já salva, sem nova chamada)
   const before = calls.length;
-  await page.getByRole("link", { name: "Leads" }).click();
+  await openMenu(page, "Leads");
   await expect(page).toHaveURL(/\/leads$/);
   await page.getByLabel("CNPJ").fill(CNPJ);
   await expect(page.getByLabel("Razão social")).toHaveValue("MATERIAIS EXEMPLO LTDA");
@@ -185,7 +186,7 @@ test("CNPJ preenche empresa, prospecção e indústria; ficha mostra sócios e e
   expect(calls.length).toBe(before);
 
   // CNPJ inexistente: aviso, nada é preenchido
-  await page.getByRole("link", { name: "Empresas" }).click();
+  await openMenu(page, "Empresas");
   await expect(page).toHaveURL(/\/empresas$/);
   await page.getByLabel("CNPJ").fill("11.222.333/0001-81");
   await expect(page.getByText("CNPJ não encontrado na base da Receita Federal.")).toBeVisible();

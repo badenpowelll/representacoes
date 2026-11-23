@@ -19,6 +19,7 @@ export default async function TenantLayout({
   const groups: NavGroup[] = [
     {
       label: "Visão geral",
+      icon: "chart",
       items: [
         { href: base, label: "Painel", icon: "dashboard" },
         { href: `${base}/contexto`, label: "Contexto", icon: "context" },
@@ -26,6 +27,7 @@ export default async function TenantLayout({
     },
     {
       label: "Representação",
+      icon: "factory",
       items: [
         { href: `${base}/industrias`, label: "Indústrias", icon: "factory" },
         { href: `${base}/territorios`, label: "Territórios", icon: "map" },
@@ -35,6 +37,7 @@ export default async function TenantLayout({
     },
     {
       label: "Comercial",
+      icon: "briefcase",
       items: [
         { href: `${base}/empresas`, label: "Empresas", icon: "building" },
         { href: `${base}/leads`, label: "Leads", icon: "target" },
@@ -42,7 +45,7 @@ export default async function TenantLayout({
         { href: `${base}/funil`, label: "Funil", icon: "kanban" },
       ],
     },
-    { label: "Organização", items: [{ href: `${base}/equipe`, label: "Equipe", icon: "users" }] },
+    { label: "Organização", icon: "users", items: [{ href: `${base}/equipe`, label: "Equipe", icon: "users" }] },
   ];
   const banner = ctx.mfaPending ? (
     <div role="status" className="border-b border-amber-200 bg-amber-50 text-amber-900">
