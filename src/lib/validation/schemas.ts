@@ -306,3 +306,39 @@ export const prospectSchema = z.object({
 });
 
 export const LEAD_STATUS_LABELS = { new: "Novo", qualified: "Qualificado", discarded: "Descartado" } as const;
+
+/** Fonte de produtos: página de produtos do site oficial da indústria (ADR 0008). */
+export const productSourceSchema = z.object({
+  industry_id: z.uuid("Selecione a indústria"),
+  mode: z.enum(["list", "watch"], { message: "Escolha o tipo" }).default("list"),
+  url: z
+    .string()
+    .trim()
+    .min(1, "Informe o endereço da página de produtos")
+    .max(1000)
+    .refine((v) => {
+      try {
+        const u = new URL(v);
+        return (u.protocol === "https:" || u.protocol === "http:") && u.hostname.includes(".");
+      } catch {
+        return false;
+      }
+    }, "Endereço inválido. Ex.: https://www.industria.com.br/produtos"),
+  label: optionalText(120),
+  link_pattern: optionalText(300).refine((v) => {
+    if (v == null) return true;
+    try {
+      new RegExp(v);
+      return true;
+    } catch {
+      return false;
+    }
+  }, "Padrão inválido"),
+});
+
+export const PRODUCT_SYNC_STATUS_LABELS: Record<string, string> = {
+  ok: "Coleta concluída",
+  skipped_safety: "Coleta suspeita, nada alterado",
+  error: "Coleta falhou",
+  changed: "A página mudou",
+};
