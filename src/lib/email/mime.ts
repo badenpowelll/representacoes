@@ -14,10 +14,24 @@ function assertSafe(name: string, value: string) {
   if (HEADER_UNSAFE.test(value)) throw new Error(`cabeçalho inválido: ${name}`);
 }
 
-export type MimeInput = { from: string; fromName?: string | null; to: string; subject: string; body: string; replyTo?: string | null };
+export type MimeInput = {
+  from: string;
+  fromName?: string | null;
+  to: string;
+  subject: string;
+  body: string;
+  replyTo?: string | null;
+  /** Resposta numa conversa existente: Message-ID da mensagem respondida e a cadeia References. */
+  inReplyTo?: string | null;
+  references?: string | null;
+};
 
-export function buildMime({ from, fromName, to, subject, body, replyTo }: MimeInput): string {
-  for (const [k, v] of Object.entries({ from, to, subject, fromName: fromName ?? "", replyTo: replyTo ?? "" })) assertSafe(k, v);
+const MSG_ID = /^<[^<>\s]+>$/;
+
+export function buildMime({ from, fromName, to, subject, body, replyTo, inReplyTo, references }: MimeInput): string {
+  for (const [k, v] of Object.entries({ from, to, subject, fromName: fromName ?? "", replyTo: replyTo ?? "", inReplyTo: inReplyTo ?? "", references: references ?? "" })) assertSafe(k, v);
+  const replyId = inReplyTo && MSG_ID.test(inReplyTo.trim()) ? inReplyTo.trim() : null;
+  const refs = [...(references ?? "").split(/\s+/).filter((x) => MSG_ID.test(x)), ...(replyId ? [replyId] : [])].slice(-20);
   if (!/^[^@\s<>",]+@[^@\s<>",]+\.[^@\s<>",]+$/.test(to)) throw new Error("destinatário inválido");
   const fromHeader = fromName ? `${encodeHeaderWord(fromName.replace(/"/g, ""))} <${from}>` : from;
   const lines = [
@@ -25,6 +39,8 @@ export function buildMime({ from, fromName, to, subject, body, replyTo }: MimeIn
     `To: ${to}`,
     `Subject: ${encodeHeaderWord(subject)}`,
     ...(replyTo ? [`Reply-To: ${replyTo}`] : []),
+    ...(replyId ? [`In-Reply-To: ${replyId}`] : []),
+    ...(refs.length ? [`References: ${[...new Set(refs)].join(" ")}`] : []),
     "MIME-Version: 1.0",
     "Content-Type: text/plain; charset=UTF-8",
     "Content-Transfer-Encoding: base64",

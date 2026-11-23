@@ -61,8 +61,11 @@ export async function sendEmail(supabase: SupabaseClient, d: SendInput): Promise
     return { ok: true, status: prep.status === "sent" ? "sent" : "sandbox", duplicate: true, from: prep.from ?? null };
   }
 
-  const record = (status: "sent" | "sandbox" | "failed", providerId?: string, err?: string) =>
-    supabase.rpc("email_record_result", { p_tenant: d.tenantId, p_message: prep.message_id, p_status: status, p_provider_id: providerId ?? null, p_error: err ?? null });
+  const record = (status: "sent" | "sandbox" | "failed", providerId?: string, err?: string, threadId?: string | null) =>
+    supabase.rpc("email_record_result", {
+      p_tenant: d.tenantId, p_message: prep.message_id, p_status: status, p_provider_id: providerId ?? null, p_error: err ?? null,
+      p_thread_id: threadId ?? null,
+    });
 
   if (sendingMode() === "sandbox") {
     await record("sandbox");
@@ -78,8 +81,9 @@ export async function sendEmail(supabase: SupabaseClient, d: SendInput): Promise
   try {
     const access = await accessTokenFromRefresh(decryptToken(conn.ciphertext));
     const raw = toBase64Url(buildMime({ from: conn.email_address, fromName: d.fromName, to: d.to, subject: d.subject, body: d.body }));
-    const id = await gmailSend(access, raw);
-    await record("sent", id);
+    const sent = await gmailSend(access, raw);
+    // A conversa (threadId) é o que liga a resposta do cliente a este envio.
+    await record("sent", sent.id, undefined, sent.threadId);
     return { ok: true, status: "sent", duplicate: false, from: conn.email_address };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "falha no envio";

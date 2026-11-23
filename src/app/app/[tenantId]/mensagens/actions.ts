@@ -7,6 +7,7 @@ import { requireTenantContext } from "@/lib/auth/tenant-context";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { decryptToken, hasTokenKey } from "@/lib/email/crypto";
 import { revokeGoogleToken } from "@/lib/email/google";
+import { createHash, randomBytes } from "node:crypto";
 
 const page = (t: string, q: string) => `/app/${t}/mensagens?${q}`;
 
@@ -79,4 +80,26 @@ export async function disconnectGmail(form: FormData) {
   await supabase.rpc("email_connection_set_status", { p_tenant: ctx.tenantId, p_status: "revoked" });
   revalidatePath(`/app/${ctx.tenantId}/mensagens`);
   redirect(page(ctx.tenantId, "gmail=desconectado"));
+}
+
+/** Gera o código de uso único para ligar o Telegram deste usuário (vale 15 minutos). */
+export async function createTelegramLink(form: FormData) {
+  const ctx = await requireTenantContext(String(form.get("tenant_id") ?? ""));
+  if (!can(ctx.role, "deals.write")) redirect(page(ctx.tenantId, "erro=permissao_tg"));
+  const code = randomBytes(18).toString("base64url");
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("telegram_link_code_create", {
+    p_tenant: ctx.tenantId,
+    p_code_hash: createHash("sha256").update(code).digest("hex"),
+  });
+  if (error) redirect(page(ctx.tenantId, "erro=salvar"));
+  redirect(page(ctx.tenantId, `tg=${code}#telegram`));
+}
+
+export async function unlinkTelegram(form: FormData) {
+  const ctx = await requireTenantContext(String(form.get("tenant_id") ?? ""));
+  const supabase = await createSupabaseServerClient();
+  await supabase.rpc("telegram_unlink", { p_tenant: ctx.tenantId });
+  revalidatePath(page(ctx.tenantId, ""));
+  redirect(page(ctx.tenantId, "telegram=desligado"));
 }

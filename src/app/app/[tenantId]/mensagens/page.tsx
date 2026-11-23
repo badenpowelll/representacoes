@@ -8,7 +8,8 @@ import { loadTenantTemplates } from "@/lib/mensagens/load";
 import { PURPOSE_LABELS, SYSTEM_TEMPLATES, type Purpose } from "@/lib/mensagens/templates";
 import { CATALOG_VARIABLES } from "@/lib/catalogos/envio";
 import { TEMPLATE_VARIABLES } from "@/lib/prospeccao/messages";
-import { disconnectGmail, resetDefaultTemplate, saveDefaultTemplate, saveSignature } from "./actions";
+import { telegramConfig } from "@/lib/telegram/bot";
+import { createTelegramLink, disconnectGmail, resetDefaultTemplate, saveDefaultTemplate, saveSignature, unlinkTelegram } from "./actions";
 
 export const metadata = { title: "Mensagens · Rep360" };
 
@@ -28,6 +29,7 @@ const ERR: Record<string, string> = {
   texto: "Confira o texto (mínimo de 10 caracteres) e o assunto do e-mail.",
   assinatura: "A assinatura pode ter até 1.000 caracteres.",
   salvar: "Não foi possível salvar. Tente de novo.",
+  permissao_tg: "Seu papel não permite responder clientes pelo Telegram.",
 };
 
 export default async function Page({
@@ -35,23 +37,26 @@ export default async function Page({
   searchParams,
 }: {
   params: Promise<{ tenantId: string }>;
-  searchParams: Promise<{ gmail?: string; erro?: string; salvo?: string; restaurado?: string }>;
+  searchParams: Promise<{ gmail?: string; erro?: string; salvo?: string; restaurado?: string; tg?: string; telegram?: string }>;
 }) {
   const { tenantId } = await params;
   const sp = await searchParams;
   const ctx = await requireTenantPage(tenantId);
   const editable = can(ctx.role, "catalog.write");
   const supabase = await createSupabaseServerClient();
-  const [templates, { data: conns }, { data: sent }] = await Promise.all([
+  const [templates, { data: conns }, { data: sent }, { data: tgLink }] = await Promise.all([
     loadTenantTemplates(supabase, tenantId),
-    supabase.from("email_connections").select("user_id, email_address, status, last_error, connected_at").eq("tenant_id", tenantId),
+    supabase.from("email_connections").select("user_id, email_address, status, last_error, connected_at, reads_inbox").eq("tenant_id", tenantId),
     supabase
       .from("email_messages")
       .select("id, to_address, subject, status, created_at, from_address, error")
       .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false })
       .limit(20),
+    supabase.from("telegram_links").select("username, linked_at").eq("tenant_id", tenantId).eq("user_id", ctx.userId).maybeSingle(),
   ]);
+  const tg = telegramConfig();
+  const tgCode = sp.tg && /^[A-Za-z0-9_-]{16,64}$/.test(sp.tg) ? sp.tg : null;
   const mine = conns?.find((c) => c.user_id === ctx.userId && c.status !== "revoked");
   const mode = sendingMode();
   const configured = Boolean(googleConfig()) && hasTokenKey();
@@ -103,9 +108,55 @@ export default async function Page({
           </p>
         )}
         <p className="text-xs text-neutral-500">
-          Permissão pedida ao Google: só enviar e-mails (gmail.send), sem ler sua caixa. O acesso fica cifrado no servidor e pode ser
-          revogado aqui ou em myaccount.google.com/permissions. Limite: 500 envios por usuário a cada 24 horas.
+          Permissões pedidas ao Google: enviar e-mails e ler a caixa só para achar respostas às conversas que o sistema começou (nada é
+          apagado nem alterado, e os outros e-mails são ignorados). O acesso fica cifrado no servidor e pode ser revogado aqui ou em
+          myaccount.google.com/permissions. Limite: 500 envios por usuário a cada 24 horas.
         </p>
+      </section>
+
+      <section id="telegram" aria-labelledby="telegram-h" className="flex flex-col gap-3 rounded-lg border p-4">
+        <h2 id="telegram-h" className="font-medium">Avisos e respostas pelo Telegram</h2>
+        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          Quando um cliente responder um e-mail que você enviou pelo sistema, o aviso chega na hora no seu Telegram. Para responder, toque em
+          Responder na mensagem e escreva: o texto sai pelo seu Gmail, na mesma conversa, com a sua assinatura. Se o cliente responder
+          &quot;SAIR&quot;, a oposição é registrada sozinha. Gratuito.
+        </p>
+        {sp.telegram === "desligado" && <Alert kind="info">Telegram desligado. Você não recebe mais avisos.</Alert>}
+        {!tg ? (
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            Ainda não configurado no servidor: crie o bot no @BotFather (gratuito) e cadastre TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME e
+            TELEGRAM_WEBHOOK_SECRET.
+          </p>
+        ) : tgLink ? (
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <span>
+              Ligado{tgLink.username ? <> como <strong>@{tgLink.username}</strong></> : null} desde{" "}
+              {new Date(tgLink.linked_at as string).toLocaleDateString("pt-BR")}
+              {mine && !mine.reads_inbox && <span className="text-amber-700 dark:text-amber-300"> · conecte a conta Google de novo para liberar a leitura das respostas</span>}
+            </span>
+            <form action={unlinkTelegram}>
+              <input type="hidden" name="tenant_id" value={tenantId} />
+              <button className="rounded-md border px-3 py-1">Desligar</button>
+            </form>
+          </div>
+        ) : tgCode ? (
+          <div className="flex flex-col gap-2 text-sm">
+            {tg.username && (
+              <a href={`https://t.me/${tg.username}?start=${tgCode}`} target="_blank" rel="noreferrer" className="self-start rounded-md bg-blue-700 px-4 py-2 font-medium text-white">
+                Abrir o Telegram e ligar
+              </a>
+            )}
+            <p>
+              Ou envie ao bot{tg.username ? <> @{tg.username}</> : null}: <code className="rounded bg-neutral-100 px-1 dark:bg-neutral-800">/start {tgCode}</code>{" "}
+              (vale 15 minutos, uma vez só). Depois, recarregue esta página.
+            </p>
+          </div>
+        ) : (
+          <form action={createTelegramLink}>
+            <input type="hidden" name="tenant_id" value={tenantId} />
+            <button className="rounded-md bg-blue-700 px-4 py-2 font-medium text-white">Ligar Telegram</button>
+          </form>
+        )}
       </section>
 
       <section aria-labelledby="assinatura" className="flex flex-col gap-3 rounded-lg border p-4">

@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { AuthorizationError, requireTenantContext } from "@/lib/auth/tenant-context";
 import { encryptToken } from "@/lib/email/crypto";
-import { exchangeCode, revokeGoogleToken, userEmail } from "@/lib/email/google";
+import { exchangeCode, gmailProfile, gmailWatch, revokeGoogleToken, userEmail } from "@/lib/email/google";
 import { OAUTH_COOKIE, appOrigin, readOAuthCookie } from "@/lib/email/oauth-cookie";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -48,6 +48,13 @@ export async function GET(req: Request) {
     if (error) {
       await revokeGoogleToken(tokens.refreshToken);
       return finish(saved.tenantId, "gmail=falhou");
+    }
+    // Com permissão de leitura, começa a vigiar respostas a partir de agora.
+    if (tokens.readsInbox) {
+      const profile = await gmailProfile(tokens.accessToken).catch(() => null);
+      await supabase.rpc("email_connection_set_inbox", { p_tenant: ctx.tenantId, p_reads: true, p_history_id: profile?.historyId ?? null });
+      const topic = process.env.GMAIL_PUBSUB_TOPIC;
+      if (topic) await gmailWatch(tokens.accessToken, topic).catch(() => undefined);
     }
     return finish(saved.tenantId, "gmail=conectado");
   } catch {

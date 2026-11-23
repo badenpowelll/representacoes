@@ -34,12 +34,14 @@ describe("token cifrado", () => {
 });
 
 describe("Google OAuth", () => {
-  it("usa PKCE S256, escopos mínimos e state", () => {
+  it("usa PKCE S256, escopos mínimos (enviar e ler) e state", () => {
     const p = newPkce();
     const u = new URL(authUrl({ clientId: "cid", redirectUri: "https://app/cb", state: p.state, challenge: p.challenge }, googleEndpoints({})));
     expect(u.origin).toBe("https://accounts.google.com");
     expect(u.searchParams.get("code_challenge_method")).toBe("S256");
-    expect(u.searchParams.get("scope")).toBe("openid email https://www.googleapis.com/auth/gmail.send");
+    expect(u.searchParams.get("scope")).toBe("openid email https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly");
+    // Nada de escopos que alteram ou apagam e-mails.
+    expect(u.searchParams.get("scope")).not.toMatch(/gmail\.(modify|compose)|mail\.google\.com/);
     expect(u.searchParams.get("access_type")).toBe("offline");
     expect(u.searchParams.get("state")).toBe(p.state);
   });
