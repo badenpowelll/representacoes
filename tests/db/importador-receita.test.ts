@@ -78,6 +78,14 @@ describe("importar-receita-cnpj", () => {
     expect(rows).toEqual([{ cnpj: "90000001000101" }]);
   });
 
+  it("aborta sem gravar quando o recorte passa do limite de linhas", async () => {
+    expect(() => runImport(["--ufs", "RN", "--cnaes", "8610101", "--max-linhas", "0"])).toThrow(/passa do limite/);
+    const imp = await pool.query("select status from ref.cnpj_imports order by started_at desc limit 1");
+    expect(imp.rows[0].status).toBe("failed");
+    const { rows } = await pool.query("select count(*)::int as n from ref.cnpj_establishments");
+    expect(rows[0].n).toBe(1);
+  });
+
   it("sem --ufs/--cnaes usa territórios e CNAEs-alvo cadastrados; sem nenhum, não faz nada", async () => {
     expect(runImport()).toMatch(/Nada a importar/);
   });

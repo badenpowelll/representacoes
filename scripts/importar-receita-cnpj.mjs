@@ -13,6 +13,8 @@
 //   --dir caminho        usa ZIPs já baixados nessa pasta (não baixa nada)
 //   --base-url URL       raiz dos dados abertos (padrão: Receita Federal)
 //   --arquivos 0-9       quais partes (Estabelecimentos/Empresas N) processar
+//   --max-linhas N       aborta sem gravar se o recorte passar de N (padrão 200000,
+//                        ~100 MB com índices; protege o plano gratuito do Supabase)
 //
 // Precisa do comando `unzip`. O banco é escrito com a conexão de DATABASE_URL
 // (papel com permissão no schema ref, ex.: postgres). Nunca imprime a URL.
@@ -173,6 +175,11 @@ async function main() {
       log(`Estabelecimentos${n}: ${seen} lidos, ${found.size} no recorte até agora`);
     }
 
+    const maxRows = Number(opt["max-linhas"] ?? 200000);
+    if (found.size > maxRows) {
+      throw new Error(`recorte com ${found.size} estabelecimentos passa do limite de ${maxRows}; reduza UFs/CNAEs ou use --max-linhas`);
+    }
+
     // 3. Razão social, natureza e porte (Empresas), só das bases encontradas.
     const companies = new Map();
     for (const n of parts(opt.arquivos)) {
@@ -235,6 +242,10 @@ async function main() {
       run.id, rows.length, removed.rowCount,
     ]);
     log(`Gravados ${rows.length} estabelecimentos; removidos ${removed.rowCount}; ${unmatched} sem município IBGE casado.`);
+    const size = await db.query(
+      "select pg_size_pretty(pg_total_relation_size('ref.cnpj_establishments')) as t, pg_size_pretty(pg_database_size(current_database())) as d",
+    );
+    log(`Tamanho: tabela ${size.rows[0].t}; banco inteiro ${size.rows[0].d} (plano gratuito: 500 MB).`);
   } catch (error) {
     await db.query("update ref.cnpj_imports set status = 'failed', finished_at = now(), error = $2 where id = $1", [
       run.id, String(error?.message ?? error).slice(0, 1000),
