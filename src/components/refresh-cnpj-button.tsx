@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { lookupCnpj } from "../../cnpj-actions";
+import { lookupCnpj } from "@/app/app/[tenantId]/cnpj-actions";
 
 /** Busca (ou atualiza) os dados da Receita para o CNPJ da empresa. */
 export function RefreshCnpjButton({ tenantId, cnpj, label }: { tenantId: string; cnpj: string; label: string }) {

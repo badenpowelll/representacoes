@@ -4,7 +4,8 @@ import { initialState } from "@/lib/action-state";
 import { Alert, Field } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { UfMunicipioFields } from "@/components/uf-municipio";
-import { CnpjField, useLocationPrefill } from "@/components/cnpj-autofill";
+import { CnpjField, useLocationPrefill, type CnpjData } from "@/components/cnpj-autofill";
+import { ContactChannelsEditor, channelsFromJson, channelsFromReceita, type ChannelRow } from "@/components/contact-channels";
 import { RECEITA_SOURCE } from "@/lib/cnpj/registry";
 import { DEAL_STAGES, DEAL_STAGE_LABELS, UF_CODES, type DealStage } from "@/lib/validation/schemas";
 import { createCompany, createDeal, createIndustry, moveDeal } from "./actions";
@@ -16,8 +17,16 @@ function Feedback({ state }: { state: { ok?: boolean; message?: string } }) {
   return <Alert kind={state.ok ? "success" : "error"}>{state.message}</Alert>;
 }
 
+/** Canais de contato sugeridos pela consulta de CNPJ. */
+function useChannelSeed() {
+  const [seed, setSeed] = useState<{ rows: ChannelRow[]; seq: number } | undefined>();
+  const onData = (d: CnpjData) => setSeed((s) => ({ rows: channelsFromReceita(d), seq: (s?.seq ?? 0) + 1 }));
+  return { seed, onData };
+}
+
 export function IndustryForm({ tenantId }: { tenantId: string }) {
   const [state, action] = useActionState(createIndustry, initialState);
+  const channels = useChannelSeed();
   return (
     <form key={state.nonce} action={action} className="grid gap-4 sm:grid-cols-2" noValidate>
       <input type="hidden" name="tenant_id" value={tenantId} />
@@ -25,7 +34,7 @@ export function IndustryForm({ tenantId }: { tenantId: string }) {
         <Feedback state={state} />
       </div>
       <CnpjField tenantId={tenantId} defaultValue={state.values?.cnpj} error={state.fieldErrors?.cnpj}
-        hint="Digite o CNPJ para preencher os dados pela Receita Federal"
+        hint="Digite o CNPJ para preencher os dados pela Receita Federal" onData={channels.onData}
         fill={{ name: (d) => d.tradeName ?? d.legalName, segment: (d) => d.mainCnaeDescription?.slice(0, 120) }} />
       <Field label="Nome" name="name"
         defaultValue={state.values?.name} required error={state.fieldErrors?.name} />
@@ -34,6 +43,8 @@ export function IndustryForm({ tenantId }: { tenantId: string }) {
       <Field label="Site" name="website"
         defaultValue={state.values?.website} type="url" placeholder="https://" error={state.fieldErrors?.website}
         hint="A Receita não informa o site; preencha se souber." />
+      <ContactChannelsEditor defaultValue={channelsFromJson(state.values?.contact_channels)} seed={channels.seed}
+        error={state.fieldErrors?.contact_channels} />
       <div>
         <SubmitButton>Cadastrar indústria</SubmitButton>
       </div>
@@ -44,6 +55,7 @@ export function IndustryForm({ tenantId }: { tenantId: string }) {
 export function CompanyForm({ tenantId }: { tenantId: string }) {
   const [state, action] = useActionState(createCompany, initialState);
   const location = useLocationPrefill();
+  const channels = useChannelSeed();
   return (
     <form key={state.nonce} action={action} className="grid gap-4 sm:grid-cols-2" noValidate>
       <input type="hidden" name="tenant_id" value={tenantId} />
@@ -51,7 +63,11 @@ export function CompanyForm({ tenantId }: { tenantId: string }) {
         <Feedback state={state} />
       </div>
       <CnpjField tenantId={tenantId} defaultValue={state.values?.cnpj} error={state.fieldErrors?.cnpj}
-        hint="Digite o CNPJ para preencher os dados pela Receita Federal" onData={location.onData}
+        hint="Digite o CNPJ para preencher os dados pela Receita Federal"
+        onData={(d, form) => {
+          location.onData(d, form);
+          channels.onData(d);
+        }}
         fill={{
           legal_name: (d) => d.legalName,
           trade_name: (d) => d.tradeName,
@@ -87,6 +103,10 @@ export function CompanyForm({ tenantId }: { tenantId: string }) {
         hint="Obrigatório (LGPD). Ex.: indicação, feira, cadastro do cliente."
         error={state.fieldErrors?.source}
       />
+      <Field label="Site" name="website" defaultValue={state.values?.website} type="url" placeholder="https://"
+        error={state.fieldErrors?.website} hint="A Receita não informa o site; preencha se souber." />
+      <ContactChannelsEditor defaultValue={channelsFromJson(state.values?.contact_channels)} seed={channels.seed}
+        error={state.fieldErrors?.contact_channels} />
       <div className="self-end">
         <SubmitButton>Cadastrar empresa</SubmitButton>
       </div>
