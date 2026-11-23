@@ -24,6 +24,7 @@ const FIX = join(__dirname, "..", "scripts", "lib", "fixtures");
 
 let server: Server;
 let listing = readFileSync(join(FIX, "lista-grade-js.html"), "utf8");
+let watched = "<main><h1>Álcool saneante</h1><p>Álcool 70° INPM</p><p>Embalagem: 1 Litro</p></main>";
 const detail = readFileSync(join(FIX, "detalhe-produto.html"), "utf8");
 
 test.beforeAll(async () => {
@@ -35,6 +36,7 @@ test.beforeAll(async () => {
     if (url.pathname === "/robots.txt") return res.end("User-agent: *\nDisallow: /privado/\n");
     if (url.pathname === "/produtos.php" && url.searchParams.has("produto_id")) return res.end(detail);
     if (url.pathname === "/produtos.php") return res.end(listing);
+    if (url.pathname === "/alcool") return res.end(watched);
     res.statusCode = 404;
     res.end("não encontrado");
   });
@@ -84,10 +86,10 @@ async function onboard(page: Page) {
   await expect(page.getByRole("heading", { name: "Painel" })).toBeVisible();
 }
 
-async function robot(sourceId: string) {
+async function robot(sourceId?: string) {
   const { stdout } = await promisify(execFile)(
     process.execPath,
-    [join(__dirname, "..", "scripts", "sincronizar-produtos.mjs"), "--fonte", sourceId],
+    [join(__dirname, "..", "scripts", "sincronizar-produtos.mjs"), ...(sourceId ? ["--fonte", sourceId] : [])],
     { env: { ...process.env, DATABASE_URL: DB_URL }, timeout: 120_000 },
   ).catch((e: { stdout?: string; message: string }) => {
     throw new Error(`robô falhou: ${e.message}\n${e.stdout ?? ""}`);
@@ -139,15 +141,30 @@ test("site da indústria: cadastro, coleta, fichas, saída do site e novidades",
   await page.reload();
   await expect(page.getByRole("row", { name: /LUVA DE PROCEDIMENTO EXEMPLO M/ }).getByText(/Inativo: saiu do site em/)).toBeVisible();
   await expect(novidades.getByText("Saíram do site (1)")).toBeVisible();
+
+  // Site sem lista de produtos: só vigia a página e avisa quando o texto muda.
+  await sites.getByLabel("Indústria do site").selectOption({ label: "Nutri Exemplo" });
+  await sites.getByLabel("Página de produtos no site da indústria").fill(`${SITE}/alcool`);
+  await sites.getByLabel("Tipo de página").selectOption("watch");
+  await sites.getByLabel("Nome da linha (opcional)").fill("Álcool saneante");
+  await sites.getByRole("button", { name: "Cadastrar site" }).click();
+  await expect(sites.getByText("vigiando a página")).toBeVisible();
+  const watchId = await sourceIdFromDb(`${SITE}/alcool`);
+  expect(await robot(watchId)).toContain("referência guardado");
+  watched = watched.replace("</main>", "<p>Álcool 70° Gel</p><p>Embalagem: 5 Litros</p></main>");
+  expect(await robot(watchId)).toContain("A página mudou");
+  await page.reload();
+  await expect(novidades.getByText("Páginas vigiadas que mudaram (1)")).toBeVisible();
+  await expect(novidades.getByText(/Entrou: Álcool 70° Gel \| Embalagem: 5 Litros/)).toBeVisible();
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/produtos-sites.png`, fullPage: true });
   await context.close();
 
-  async function sourceIdFromDb() {
+  async function sourceIdFromDb(url = `${SITE}/produtos.php`) {
     const { Client } = await import("pg");
     const db = new Client({ connectionString: DB_URL });
     await db.connect();
     try {
-      const { rows } = await db.query("select id from public.product_sources where url = $1 order by created_at desc limit 1", [`${SITE}/produtos.php`]);
+      const { rows } = await db.query("select id from public.product_sources where url = $1 order by created_at desc limit 1", [url]);
       return rows[0].id as string;
     } finally {
       await db.end();

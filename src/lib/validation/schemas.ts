@@ -310,6 +310,7 @@ export const LEAD_STATUS_LABELS = { new: "Novo", qualified: "Qualificado", disca
 /** Fonte de produtos: página de produtos do site oficial da indústria (ADR 0008). */
 export const productSourceSchema = z.object({
   industry_id: z.uuid("Selecione a indústria"),
+  mode: z.enum(["list", "watch"], { message: "Escolha o tipo" }).default("list"),
   url: z
     .string()
     .trim()
@@ -339,4 +340,5 @@ export const PRODUCT_SYNC_STATUS_LABELS: Record<string, string> = {
   ok: "Coleta concluída",
   skipped_safety: "Coleta suspeita, nada alterado",
   error: "Coleta falhou",
+  changed: "A página mudou",
 };

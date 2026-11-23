@@ -13,7 +13,7 @@ As indústrias representadas publicam a linha no próprio site, em formatos dife
 | nutriexprofissional.com.br/produtos.php | igual, 47 itens | `Disallow: /*?` | só a lista; páginas de produto proibidas → fica o link |
 | belfar.com.br/categoria-produto/… | WooCommerce, paginado (12 por página) | permite | lista + produto (SKU, apresentação, princípio ativo, indicações, registro M.S.) |
 | proc9.com.br/catalogo-proc9 | PDF liberado após formulário de cadastro | permite | nada automático (não preenchemos formulário em nome do usuário) |
-| petribu.com.br/alcoolsaneantes | texto corrido, sem página por produto (Wix) | permite | não separável com segurança; cadastro manual |
+| petribu.com.br/alcoolsaneantes | texto corrido, sem página por produto (Wix) | permite | não separável com segurança; produtos à mão + fonte no modo "vigiar página" |
 
 Nenhum desses sites publica preço. A regra do Rep360 (P1-5, ADR de preços) continua: preço
 só com origem, documento e vigência.
@@ -50,6 +50,8 @@ só com origem, documento e vigência.
   (o mesmo do importador da Receita).
 - Mudança de layout de um site pode zerar a extração: a trava impede desativação em massa e
   a tela mostra "Coleta falhou".
-- Pendências: modo "vigiar página" (avisar quando uma página sem lista muda, ex. Petribu);
-  leitura de produtos de catálogos em PDF (ex. PROC9); compartilhar produtos com o cliente
+- Modo **vigiar página** (`mode = 'watch'`): para sites sem uma página por produto, o robô
+  guarda o texto da página e, quando muda, registra "A página mudou" com as linhas que
+  entraram e saíram (`app.record_product_source_watch`); aparece em Novidades.
+- Pendências: leitura de produtos de catálogos em PDF (ex. PROC9); compartilhar produtos com o cliente
   e receber pedidos.

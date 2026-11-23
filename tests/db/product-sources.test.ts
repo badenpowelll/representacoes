@@ -157,3 +157,39 @@ describe("sincronização", () => {
     expect(src).toEqual({ last_status: "error", last_message: "robots.txt não permite" });
   });
 });
+
+describe("modo vigiar página", () => {
+  let watch: string;
+  const record = async (text: string, summary: string | null = null) =>
+    (await pool.query("select * from app.record_product_source_watch($1, $2, $3)", [watch, text, summary])).rows[0];
+
+  beforeAll(async () => {
+    watch = await asUser(pool, admin, (db) =>
+      id(db.query(
+        "insert into public.product_sources (tenant_id, industry_id, url, mode, watch_text) values ($1, $2, 'https://usina.example/alcool', 'watch', 'forjado') returning id",
+        [tenant, ind],
+      )));
+  });
+
+  it("usuário não forja o texto vigiado", async () => {
+    const row = (await pool.query("select mode, watch_text from public.product_sources where id = $1", [watch])).rows[0];
+    expect(row).toEqual({ mode: "watch", watch_text: null });
+  });
+
+  it("guarda a referência, não avisa sem mudança e avisa quando muda", async () => {
+    expect(await record("Álcool 70 1 L\nÁlcool 46 500 mL")).toMatchObject({ status: "ok", message: expect.stringContaining("referência") });
+    expect(await record("Álcool 70 1 L\nÁlcool 46 500 mL")).toMatchObject({ status: "ok", message: expect.stringContaining("sem mudanças") });
+    const changed = await record("Álcool 70 1 L\nÁlcool 46 500 mL\nÁlcool 70 Gel 5 L", "Entrou: Álcool 70 Gel 5 L");
+    expect(changed).toMatchObject({ status: "changed", message: expect.stringContaining("Entrou: Álcool 70 Gel 5 L") });
+    const src = (await pool.query("select last_status, watch_changed_at from public.product_sources where id = $1", [watch])).rows[0];
+    expect(src.last_status).toBe("changed");
+    expect(src.watch_changed_at).not.toBeNull();
+    expect(await record("")).toMatchObject({ status: "error" });
+    expect((await pool.query("select watch_text from public.product_sources where id = $1", [watch])).rows[0].watch_text).toContain("Gel 5 L");
+  });
+
+  it("função do robô não é executável pelo app", async () => {
+    const r = await tryAsUser(pool, admin, (db) => db.query("select app.record_product_source_watch($1, 'x')", [watch]));
+    expect(r.ok).toBe(false);
+  });
+});

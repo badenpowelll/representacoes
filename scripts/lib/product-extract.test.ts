@@ -142,3 +142,13 @@ describe("loja WooCommerce (ex.: laboratório farmacêutico)", () => {
     );
   });
 });
+
+describe("vigiar página", () => {
+  it("resume linhas que entraram e saíram, ignorando espaços", async () => {
+    const { pageTextSummary } = await import("./watch.mjs");
+    const before = "Álcool 70° INPM\nEmbalagem: 1 Litro\nÁlcool 46°  INPM\nEmbalagem: 500 ml";
+    const after = "Álcool 70° INPM\nEmbalagem: 1 Litro\nÁlcool 70° Gel\nEmbalagem: 5 Litros";
+    expect(pageTextSummary(before, after)).toBe("Entrou: Álcool 70° Gel | Embalagem: 5 Litros. Saiu: Álcool 46° INPM | Embalagem: 500 ml.");
+    expect(pageTextSummary("a b c\n", "a  b c")).toBeNull();
+  });
+});

@@ -20,9 +20,14 @@ create table public.product_sources (
   label         text check (label is null or length(btrim(label)) between 1 and 120),
   -- Regex opcional para reconhecer links de produto quando a detecção automática falhar.
   link_pattern  text check (link_pattern is null or length(link_pattern) between 1 and 300),
+  -- list: extrai a lista de produtos; watch: só vigia a página e avisa quando o texto muda
+  -- (sites sem uma página por produto, ex.: texto corrido).
+  mode          text not null default 'list' check (mode in ('list', 'watch')),
+  watch_text    text check (watch_text is null or length(watch_text) <= 100000),
+  watch_changed_at timestamptz,
   active        boolean not null default true,
   last_run_at   timestamptz,
-  last_status   text check (last_status in ('ok', 'skipped_safety', 'error')),
+  last_status   text check (last_status in ('ok', 'skipped_safety', 'error', 'changed')),
   last_message  text check (last_message is null or length(last_message) <= 2000),
   last_found    integer,
   created_by    uuid references auth.users (id) on delete set null default auth.uid(),
@@ -48,10 +53,12 @@ begin
   end if;
   if tg_op = 'INSERT' then
     new.last_run_at := null; new.last_status := null; new.last_message := null; new.last_found := null;
+    new.watch_text := null; new.watch_changed_at := null;
     new.created_by := auth.uid();
   else
     new.last_run_at := old.last_run_at; new.last_status := old.last_status;
     new.last_message := old.last_message; new.last_found := old.last_found;
+    new.watch_text := old.watch_text; new.watch_changed_at := old.watch_changed_at;
     new.created_by := old.created_by;
   end if;
   return new;
@@ -113,7 +120,7 @@ create table public.product_sync_runs (
   tenant_id    uuid not null,
   source_id    uuid not null,
   started_at   timestamptz not null default now(),
-  status       text not null check (status in ('ok', 'skipped_safety', 'error')),
+  status       text not null check (status in ('ok', 'skipped_safety', 'error', 'changed')),
   found        integer not null default 0,
   added        integer not null default 0,
   updated      integer not null default 0,
@@ -292,5 +299,46 @@ begin
   return run;
 end $$;
 
+-- Modo "vigiar página": guarda o texto da página e avisa quando ele muda.
+-- p_summary: resumo das linhas que entraram/saíram, calculado pelo robô.
+create or replace function app.record_product_source_watch(p_source uuid, p_text text, p_summary text default null)
+returns public.product_sync_runs
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  s   public.product_sources;
+  run public.product_sync_runs;
+  v_status text;
+  v_msg    text;
+begin
+  select * into s from public.product_sources where id = p_source for update;
+  if not found then raise exception 'fonte inexistente' using errcode = 'P0002'; end if;
+  if coalesce(btrim(p_text), '') = '' then
+    v_status := 'error'; v_msg := 'Página sem texto; nada foi comparado.';
+  elsif s.watch_text is null then
+    v_status := 'ok'; v_msg := 'Página vigiada: texto de referência guardado.';
+  elsif md5(s.watch_text) = md5(left(p_text, 100000)) then
+    v_status := 'ok'; v_msg := 'Página vigiada: sem mudanças.';
+  else
+    v_status := 'changed';
+    v_msg := left('A página mudou. Confira se entrou ou saiu produto. ' || coalesce(p_summary, ''), 2000);
+  end if;
+  insert into public.product_sync_runs (tenant_id, source_id, status, message)
+  values (s.tenant_id, s.id, v_status, v_msg) returning * into run;
+  update public.product_sources
+     set last_run_at = now(), last_status = v_status, last_message = v_msg,
+         watch_text = case when v_status = 'error' then watch_text else left(p_text, 100000) end,
+         watch_changed_at = case when v_status = 'changed' then now() else watch_changed_at end
+   where id = s.id;
+  if v_status = 'changed' then
+    insert into public.audit_logs (tenant_id, action, entity, entity_id, metadata)
+    values (s.tenant_id, 'product_source.page_changed', 'product_sources', s.id, jsonb_build_object('summary', left(p_summary, 1000)));
+  end if;
+  return run;
+end $$;
+
+revoke all on function app.record_product_source_watch(uuid, text, text) from public, anon, authenticated;
 revoke all on function app.sync_product_source(uuid, jsonb, numeric) from public, anon, authenticated;
 revoke all on function app.record_product_source_failure(uuid, text) from public, anon, authenticated;

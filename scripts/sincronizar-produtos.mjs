@@ -10,6 +10,8 @@
 //      robots.txt permitir, para pegar descrição, SKU e fichas (FT, FDS);
 //   4. grava via app.sync_product_source(): novo entra, o que saiu fica
 //      inativo, o que voltou é reativado. Preço nunca vem do site.
+// Fontes no modo "vigiar página" (sites sem uma página por produto) só têm o
+// texto comparado com o da última execução; mudança vira aviso na tela.
 //
 // Uso:
 //   DATABASE_URL=postgres://... node scripts/sincronizar-produtos.mjs [opções]
@@ -23,7 +25,8 @@
 import { chromium } from "@playwright/test";
 import { parseHTML } from "linkedom";
 import pg from "pg";
-import { extractDetail, extractListing, nextPageUrl } from "./lib/product-extract.mjs";
+import { blockText, extractDetail, extractListing, nextPageUrl } from "./lib/product-extract.mjs";
+import { pageTextSummary } from "./lib/watch.mjs";
 import { isAllowed, USER_AGENT } from "./lib/robots.mjs";
 
 const DETAILS_MAX_AGE_DAYS = 7;
@@ -159,7 +162,7 @@ async function main() {
     let failures = 0;
     try {
       const { rows: sources } = await db.query(
-        `select s.id, s.url, s.link_pattern, s.label, i.name industry
+        `select s.id, s.url, s.link_pattern, s.label, s.mode, s.watch_text, i.name industry
            from public.product_sources s join public.industries i on i.id = s.industry_id
           where s.active and ($1::uuid is null or s.id = $1::uuid)
           order by s.created_at`,
@@ -169,6 +172,17 @@ async function main() {
       for (const s of sources) {
         log(`${s.industry} — ${s.label ?? s.url}`);
         try {
+          if (s.mode === "watch") {
+            if (!(await allowed(s.url))) throw new Error(`o robots.txt do site não permite ler ${s.url}`);
+            const { html } = await render(context, s.url);
+            const { document } = parseHTML(html);
+            const text = blockText(document.querySelector("main") ?? document.body);
+            const summary = s.watch_text ? pageTextSummary(s.watch_text, text) : null;
+            const { rows } = await db.query("select * from app.record_product_source_watch($1, $2, $3)", [s.id, text, summary]);
+            log(`  vigiar página: ${rows[0].status} — ${rows[0].message}`);
+            if (rows[0].status === "error") failures++;
+            continue;
+          }
           const items = await collectListing(context, s.url, { linkPattern: s.link_pattern, maxPages });
           const { rows: knownRows } = await db.query(
             "select source_key, details_fetched_at from public.products where source_id = $1",

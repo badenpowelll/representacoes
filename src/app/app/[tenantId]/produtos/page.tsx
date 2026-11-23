@@ -45,7 +45,7 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
     supabase.rpc("product_eligibility", { p_tenant: tenantId }),
     supabase
       .from("product_sources")
-      .select("id, url, label, active, last_run_at, last_status, last_message, last_found, industries(name)")
+      .select("id, url, label, mode, active, last_run_at, last_status, last_message, last_found, watch_changed_at, industries(name)")
       .eq("tenant_id", tenantId)
       .order("created_at"),
     supabase
@@ -86,19 +86,20 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
   }));
 
   type Source = {
-    id: string; url: string; label: string | null; active: boolean; last_run_at: string | null;
+    id: string; url: string; label: string | null; mode: string; active: boolean; last_run_at: string | null; watch_changed_at: string | null;
     last_status: string | null; last_message: string | null; last_found: number | null; industries: { name: string } | null;
   };
   const sourceRows = (sources.data ?? []) as unknown as Source[];
   type Change = { id: string; name: string; source_url: string | null; source_first_seen_at?: string; inactive_since?: string; industries: { name: string } | null };
   const addedRows = (added.data ?? []) as unknown as Change[];
   const removedRows = (removed.data ?? []) as unknown as Change[];
+  const changedPages = sourceRows.filter((s) => s.mode === "watch" && s.watch_changed_at && new Date(s.watch_changed_at) >= new Date(since));
 
   return (
     <div className="flex flex-col gap-8">
       <h1 className="text-2xl font-semibold">Produtos</h1>
 
-      {(addedRows.length > 0 || removedRows.length > 0) && (
+      {(addedRows.length > 0 || removedRows.length > 0 || changedPages.length > 0) && (
         <section aria-labelledby="novidades" className="rounded-lg border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900 dark:bg-blue-950/30">
           <h2 id="novidades" className="mb-1 font-medium">
             Novidades nos sites das indústrias (últimos {NOVIDADES_DIAS} dias)
@@ -130,6 +131,20 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
               </ul>
             </div>
           </div>
+          {changedPages.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-sm font-medium text-amber-800 dark:text-amber-400">Páginas vigiadas que mudaram ({changedPages.length})</h3>
+              <ul className="mt-1 list-disc pl-5 text-sm">
+                {changedPages.map((s) => (
+                  <li key={s.id}>
+                    <a className="underline" href={safeHref(s.url)} target="_blank" rel="noopener noreferrer">{s.industries?.name}{s.label ? ` · ${s.label}` : ""}</a>
+                    <span className="text-neutral-500"> · {s.watch_changed_at && data(s.watch_changed_at)}</span>
+                    {s.last_status === "changed" && s.last_message && <span className="block text-neutral-600">{s.last_message}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
       )}
 
@@ -139,7 +154,7 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
         </h2>
         <p className="mb-4 text-sm text-neutral-600">
           Uma vez por dia (06h, horário de Brasília) o robô lê estas páginas: produto novo entra sem preço, com foto, link e fichas;
-          produto que saiu do site fica inativo. Preço continua exigindo tabela e vigência.
+          produto que saiu do site fica inativo. Páginas vigiadas só geram aviso quando mudam. Preço continua exigindo tabela e vigência.
         </p>
         {sources.error && <Alert kind="error">Não foi possível carregar os sites.</Alert>}
         {sourceRows.length > 0 && (
@@ -149,11 +164,12 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
                 <div>
                   <span className="font-medium">{s.industries?.name}</span>
                   {s.label && <span> · {s.label}</span>}
+                  {s.mode === "watch" && <span className="text-neutral-500"> · vigiando a página</span>}
                   {!s.active && <span className="text-neutral-500"> · pausado</span>}
                   <a className="block break-all text-blue-700 underline dark:text-blue-400" href={safeHref(s.url)} target="_blank" rel="noopener noreferrer">
                     {s.url}
                   </a>
-                  <span className={s.last_status && s.last_status !== "ok" ? "block text-red-700" : "block text-neutral-500"}>
+                  <span className={s.last_status === "changed" ? "block text-amber-700" : s.last_status && s.last_status !== "ok" ? "block text-red-700" : "block text-neutral-500"}>
                     {s.last_run_at
                       ? `${PRODUCT_SYNC_STATUS_LABELS[s.last_status ?? ""] ?? "Última coleta"} em ${dataHora(s.last_run_at)}${s.last_found != null ? ` · ${s.last_found} produtos no site` : ""}${s.last_message ? ` · ${s.last_message}` : ""}`
                       : "Aguardando a primeira coleta"}

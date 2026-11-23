@@ -34,6 +34,17 @@ export function ProductSourceForm({ tenantId, industries }: { tenantId: string; 
           placeholder="https://www.industria.com.br/produtos" error={e.url}
           hint="A página com a lista de produtos (pode ser uma categoria). O robô respeita o robots.txt do site." />
       </div>
+      <div className="flex flex-col gap-1">
+        <label htmlFor="fonte_mode" className="text-sm font-medium">
+          Tipo de página
+        </label>
+        <select id="fonte_mode" name="mode" className={sel} defaultValue={v.mode ?? "list"} aria-describedby="fonte_mode-dica">
+          <option value="list">Lista de produtos (cadastra e atualiza)</option>
+          <option value="watch">Vigiar página (só avisa quando mudar)</option>
+        </select>
+        <p id="fonte_mode-dica" className="text-xs text-neutral-500">Use &quot;vigiar&quot; em sites sem uma página por produto.</p>
+        {e.mode && <p className="text-sm text-red-600">{e.mode}</p>}
+      </div>
       <Field label="Nome da linha (opcional)" name="label" defaultValue={v.label} error={e.label} placeholder="Ex.: Linha profissional" />
       <details className="sm:col-span-2">
         <summary className="cursor-pointer text-sm text-neutral-600">Avançado</summary>
