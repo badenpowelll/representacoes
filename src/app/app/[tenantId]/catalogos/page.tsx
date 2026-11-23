@@ -40,10 +40,10 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
           <h2 id="novo-catalogo" className="mb-4 font-medium">
             Novo catálogo
           </h2>
-          {industries.data?.length ? (
-            <CatalogUploadForm tenantId={tenantId} industries={industries.data} />
+          {industries.error ? (
+            <Alert kind="error">Não foi possível carregar as indústrias.</Alert>
           ) : (
-            <p className="text-sm text-neutral-500">Cadastre uma indústria antes de enviar catálogos.</p>
+            <CatalogUploadForm tenantId={tenantId} industries={industries.data ?? []} />
           )}
         </section>
       )}
