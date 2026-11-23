@@ -108,7 +108,7 @@ test("site da indústria: cadastro, coleta, fichas, saída do site e novidades",
 
   await page.getByRole("link", { name: "Produtos", exact: true }).click();
   const sites = page.getByRole("region", { name: "Sites das indústrias" });
-  await sites.getByLabel("Indústria", { exact: true }).selectOption({ label: "Nutri Exemplo" });
+  await sites.getByLabel("Indústria do site").selectOption({ label: "Nutri Exemplo" });
   await sites.getByLabel("Página de produtos no site da indústria").fill("javascript:alert(1)");
   await sites.getByRole("button", { name: "Cadastrar site" }).click();
   await expect(sites.getByText("Endereço inválido")).toBeVisible();
@@ -133,7 +133,7 @@ test("site da indústria: cadastro, coleta, fichas, saída do site e novidades",
   await expect(novidades.getByText(/Entraram \(\d+\)/)).toBeVisible();
 
   // A luva some do site: na coleta seguinte fica inativa e aparece em "Saíram".
-  listing = listing.replace(/<li class="grid-item">(?:(?!<\/li>).)*produto_id=102(?:(?!<\/li>).)*<\/li>/s, "");
+  listing = listing.replace(/<li class="grid-item">(?:(?!<\/li>)[\s\S])*produto_id=102(?:(?!<\/li>)[\s\S])*<\/li>/, "");
   const out2 = await robot(sourceId);
   expect(out2).toContain("1 saíram");
   await page.reload();

@@ -17,7 +17,7 @@ export function ProductSourceForm({ tenantId, industries }: { tenantId: string; 
       <div className="sm:col-span-3">{state.message && <Alert kind={state.ok ? "success" : "error"}>{state.message}</Alert>}</div>
       <div className="flex flex-col gap-1">
         <label htmlFor="fonte_industry_id" className="text-sm font-medium">
-          Indústria
+          Indústria do site
         </label>
         <select id="fonte_industry_id" name="industry_id" className={sel} defaultValue={v.industry_id ?? ""}>
           <option value="">Selecione</option>
