@@ -50,7 +50,8 @@ Interface:
 - ✅ Modo "vigiar página" para sites sem lista de produtos (ex.: Petribu)
 - ⏳ Leitura de produtos de catálogo PDF (ex.: PROC9)
 - ⏳ Compartilhar produtos com o cliente e receber pedidos
-- ⏳ Importação de produtos em lote (planilha)
+- ✅ Importar planilhas (ADR 0009): clientes (completa pelo CNPJ, sem duplicar, LGPD do lote) e produtos/tabela de preços (sem duplicar SKU, origem/documento/vigência), mapeamento de colunas, prévia, relatório e modelo padrão
+- ⏳ Importação: lembrar o mapeamento por indústria quando os modelos chegarem; desfazer importação; fila para planilhas muito grandes
 - ✅ Municípios do IBGE: snapshot CSV versionado com data e sha256, migration gerada por script
 - ✅ Workflow manual de E2E (`workflow_dispatch`), ainda não disparado
 - ⏳ E2E automático em cada PR (decisão do proprietário: minutos do Actions)

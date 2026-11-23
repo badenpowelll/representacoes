@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireTenantPage } from "@/lib/auth/session";
 import { can } from "@/lib/auth/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -97,7 +98,14 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
 
   return (
     <div className="flex flex-col gap-8">
-      <h1 className="text-2xl font-semibold">Produtos</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold">Produtos</h1>
+        {writable && (
+          <Link href={`/app/${tenantId}/produtos/importar`} className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-neutral-50 dark:hover:bg-neutral-900">
+            Importar planilha de produtos e preços
+          </Link>
+        )}
+      </div>
 
       {(addedRows.length > 0 || removedRows.length > 0 || changedPages.length > 0) && (
         <section aria-labelledby="novidades" className="rounded-lg border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900 dark:bg-blue-950/30">

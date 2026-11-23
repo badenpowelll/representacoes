@@ -21,7 +21,14 @@ export default async function Page({ params }: { params: Promise<{ tenantId: str
 
   return (
     <div className="flex flex-col gap-8">
-      <h1 className="text-2xl font-semibold">Clientes e prospects</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold">Clientes e prospects</h1>
+        {can(ctx.role, "crm.write") && (
+          <Link href={`/app/${tenantId}/empresas/importar`} className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-neutral-50 dark:hover:bg-neutral-900">
+            Importar planilha
+          </Link>
+        )}
+      </div>
       {can(ctx.role, "crm.write") && (
         <section aria-labelledby="nova-empresa" className="rounded-lg border p-4">
           <h2 id="nova-empresa" className="mb-4 font-medium">
