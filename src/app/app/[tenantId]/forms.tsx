@@ -7,10 +7,10 @@ import { UfMunicipioFields } from "@/components/uf-municipio";
 import { CnpjField, useLocationPrefill, type CnpjData } from "@/components/cnpj-autofill";
 import { ContactChannelsEditor, channelsFromJson, channelsFromReceita, type ChannelRow } from "@/components/contact-channels";
 import { RECEITA_SOURCE } from "@/lib/cnpj/registry";
-import { DEAL_STAGES, DEAL_STAGE_LABELS, UF_CODES, type DealStage } from "@/lib/validation/schemas";
-import { createCompany, createDeal, createIndustry, moveDeal } from "./actions";
+import { UF_CODES } from "@/lib/validation/schemas";
+import { createCompany, createDeal, createIndustry } from "./actions";
 
-const selectClass = "rounded-md border border-neutral-300 bg-transparent px-3 py-2 dark:border-neutral-700";
+export const selectClass = "rounded-md border border-neutral-300 bg-transparent px-3 py-2 dark:border-neutral-700";
 
 function Feedback({ state }: { state: { ok?: boolean; message?: string } }) {
   if (!state.message) return null;
@@ -114,21 +114,29 @@ export function CompanyForm({ tenantId }: { tenantId: string }) {
   );
 }
 
-export function DealForm({ tenantId, companies }: { tenantId: string; companies: { id: string; legal_name: string }[] }) {
-  const [state, action] = useActionState(createDeal, initialState);
+type Option = { id: string; name: string };
+
+/** Seleção de empresa e indústria de um negócio (reaproveitada no criar e no editar). */
+export function DealPartyFields({
+  idPrefix = "",
+  companies,
+  industries,
+  values,
+  fieldErrors,
+}: {
+  idPrefix?: string;
+  companies: { id: string; legal_name: string }[];
+  industries: Option[];
+  values?: Record<string, string | null | undefined>;
+  fieldErrors?: Record<string, string>;
+}) {
   return (
-    <form key={state.nonce} action={action} className="grid gap-4 sm:grid-cols-4" noValidate>
-      <input type="hidden" name="tenant_id" value={tenantId} />
-      <div className="sm:col-span-4">
-        <Feedback state={state} />
-      </div>
-      <Field label="Título" name="title"
-        defaultValue={state.values?.title} required error={state.fieldErrors?.title} />
+    <>
       <div className="flex flex-col gap-1">
-        <label htmlFor="company_id" className="text-sm font-medium">
+        <label htmlFor={`${idPrefix}company_id`} className="text-sm font-medium text-argos-navy">
           Empresa
         </label>
-        <select id="company_id" name="company_id" className={selectClass} required defaultValue={state.values?.company_id ?? ""}>
+        <select id={`${idPrefix}company_id`} name="company_id" className={selectClass} required defaultValue={values?.company_id ?? ""}>
           <option value="" disabled>
             Selecione
           </option>
@@ -138,56 +146,50 @@ export function DealForm({ tenantId, companies }: { tenantId: string; companies:
             </option>
           ))}
         </select>
-        {state.fieldErrors?.company_id && <p className="text-sm text-red-600">{state.fieldErrors.company_id}</p>}
+        {fieldErrors?.company_id && <p className="text-sm text-red-600">{fieldErrors.company_id}</p>}
       </div>
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`${idPrefix}industry_id`} className="text-sm font-medium text-argos-navy">
+          Indústria
+        </label>
+        <select id={`${idPrefix}industry_id`} name="industry_id" className={selectClass} defaultValue={values?.industry_id ?? ""}>
+          <option value="">Nenhuma</option>
+          {industries.map((i) => (
+            <option key={i.id} value={i.id}>
+              {i.name}
+            </option>
+          ))}
+        </select>
+        {fieldErrors?.industry_id && <p className="text-sm text-red-600">{fieldErrors.industry_id}</p>}
+      </div>
+    </>
+  );
+}
+
+export function DealForm({
+  tenantId,
+  companies,
+  industries,
+}: {
+  tenantId: string;
+  companies: { id: string; legal_name: string }[];
+  industries: Option[];
+}) {
+  const [state, action] = useActionState(createDeal, initialState);
+  return (
+    <form key={state.nonce} action={action} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5" noValidate>
+      <input type="hidden" name="tenant_id" value={tenantId} />
+      <div className="sm:col-span-2 lg:col-span-5">
+        <Feedback state={state} />
+      </div>
+      <Field label="Título" name="title"
+        defaultValue={state.values?.title} required error={state.fieldErrors?.title} />
+      <DealPartyFields companies={companies} industries={industries} values={state.values} fieldErrors={state.fieldErrors} />
       <Field label="Valor (R$)" name="amount"
         defaultValue={state.values?.amount} inputMode="decimal" error={state.fieldErrors?.amount} />
       <div className="self-end">
         <SubmitButton>Criar negócio</SubmitButton>
       </div>
-    </form>
-  );
-}
-
-export function MoveDealForm({ tenantId, dealId, stage }: { tenantId: string; dealId: string; stage: DealStage }) {
-  const [state, action] = useActionState(moveDeal, initialState);
-  const [target, setTarget] = useState<DealStage>(stage);
-  return (
-    <form key={state.nonce} action={action} className="mt-2 flex flex-col gap-2 text-sm">
-      <input type="hidden" name="tenant_id" value={tenantId} />
-      <input type="hidden" name="deal_id" value={dealId} />
-      <label className="sr-only" htmlFor={`stage-${dealId}`}>
-        Mover para etapa
-      </label>
-      <div className="flex gap-2">
-        <select
-          id={`stage-${dealId}`}
-          name="stage"
-          value={target}
-          onChange={(e) => setTarget(e.target.value as DealStage)}
-          className={`${selectClass} min-w-0 flex-1 py-1`}
-        >
-          {DEAL_STAGES.map((s) => (
-            <option key={s} value={s}>
-              {DEAL_STAGE_LABELS[s]}
-            </option>
-          ))}
-        </select>
-        <button className="shrink-0 rounded-md border px-2" disabled={target === stage}>
-          Mover
-        </button>
-      </div>
-      {target === "lost" && (
-        <input
-          name="lost_reason"
-          aria-label="Motivo da perda"
-          placeholder="Motivo da perda"
-          className={`${selectClass} py-1`}
-          required
-        />
-      )}
-      {state.fieldErrors?.lost_reason && <p className="text-red-600">{state.fieldErrors.lost_reason}</p>}
-      {state.message && !state.ok && <p className="text-red-600">{state.message}</p>}
     </form>
   );
 }

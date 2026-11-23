@@ -132,6 +132,41 @@ describe("funil", () => {
     expect(n).toEqual({ d: 0, a: 0, l: 0 });
   });
 
+  it("edição do card não aponta empresa ou indústria de outra representação", async () => {
+    const deal = await asUser(pool, alfaRep, (db) =>
+      id(db.query("insert into public.deals (tenant_id, company_id, title) values ($1, $2, 'Editável') returning id", [alfa, natalCo])),
+    );
+    const otherCo = await tryAsUser(pool, alfaRep, (db) => db.query("update public.deals set company_id = $2 where id = $1", [deal, betaCo]));
+    expect(otherCo.ok).toBe(false);
+    const otherInd = await tryAsUser(pool, alfaRep, (db) => db.query("update public.deals set industry_id = $2 where id = $1", [deal, betaInd]));
+    expect(otherInd.ok).toBe(false);
+    await asUser(pool, alfaRep, (db) =>
+      db.query("update public.deals set title = 'Editado', industry_id = $2, amount = 2000 where id = $1", [deal, ind]),
+    );
+    const { rows } = await pool.query("select title, industry_id, amount from public.deals where id = $1", [deal]);
+    expect(rows[0]).toMatchObject({ title: "Editado", industry_id: ind, amount: "2000.00" });
+    const viewerEdit = await asUser(pool, alfaViewer, async (db) => (await db.query("update public.deals set title = 'Hack' where id = $1", [deal])).rowCount);
+    expect(viewerEdit).toBe(0);
+  });
+
+  it("exclusão: só quem escreve no funil da própria representação, com auditoria", async () => {
+    const deal = await asUser(pool, alfaRep, (db) =>
+      id(db.query("insert into public.deals (tenant_id, company_id, title, stage) values ($1, $2, 'Para excluir', 'qualified') returning id", [alfa, natalCo])),
+    );
+    await asUser(pool, alfaRep, (db) => db.query("update public.deals set stage = 'contact' where id = $1", [deal]));
+    const byViewer = await asUser(pool, alfaViewer, async (db) => (await db.query("delete from public.deals where id = $1", [deal])).rowCount);
+    expect(byViewer).toBe(0);
+    const byBeta = await asUser(pool, betaAdmin, async (db) => (await db.query("delete from public.deals where id = $1", [deal])).rowCount);
+    expect(byBeta).toBe(0);
+    const byRep = await asUser(pool, alfaRep, async (db) => (await db.query("delete from public.deals where id = $1", [deal])).rowCount);
+    expect(byRep).toBe(1);
+    const left = await pool.query("select (select count(*) from public.deals where id = $1)::int as d, (select count(*) from public.activities where deal_id = $1)::int as a", [deal]);
+    expect(left.rows[0]).toEqual({ d: 0, a: 0 });
+    const audit = await pool.query("select tenant_id, actor_id, metadata from public.audit_logs where action = 'deal.deleted' and entity_id = $1", [deal]);
+    expect(audit.rows).toHaveLength(1);
+    expect(audit.rows[0]).toMatchObject({ tenant_id: alfa, actor_id: alfaRep, metadata: { title: "Para excluir", stage: "contact" } });
+  });
+
   it("leitura não move cards", async () => {
     const n = await asUser(pool, alfaViewer, async (db) => (await db.query("update public.deals set stage = 'proposal'")).rowCount);
     expect(n).toBe(0);

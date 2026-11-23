@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatCnpj, isValidCnpj } from "./cnpj";
-import { companySchema, dealSchema, industrySchema, moveDealSchema, optionalMunicipality, contactSchema, productSchema, prospectSchema } from "./schemas";
+import { companySchema, dealSchema, deleteDealSchema, industrySchema, moveDealSchema, updateDealSchema, optionalMunicipality, contactSchema, productSchema, prospectSchema } from "./schemas";
 
 describe("CNPJ", () => {
   it("valida dígitos verificadores", () => {
@@ -36,6 +36,20 @@ describe("schemas", () => {
     const id = "6f1c1e0a-3b7a-4c55-9d43-6f0b8f2d9a11";
     expect(moveDealSchema.safeParse({ deal_id: id, stage: "lost", lost_reason: "" }).success).toBe(false);
     expect(moveDealSchema.safeParse({ deal_id: id, stage: "lost", lost_reason: "preço" }).success).toBe(true);
+  });
+  it("edição do card: indústria opcional, etapa válida e perda com motivo", () => {
+    const id = "6f1c1e0a-3b7a-4c55-9d43-6f0b8f2d9a11";
+    const base = { deal_id: id, title: "Proteção solar", company_id: id, amount: "2.000,00", stage: "negotiation" };
+    const ok = updateDealSchema.parse({ ...base, industry_id: "" });
+    expect(ok.industry_id).toBeNull();
+    expect(ok.amount).toBe(2000);
+    expect(updateDealSchema.parse({ ...base, industry_id: id }).industry_id).toBe(id);
+    expect(updateDealSchema.safeParse({ ...base, industry_id: "abc" }).success).toBe(false);
+    expect(updateDealSchema.safeParse({ ...base, stage: "arquivado" }).success).toBe(false);
+    expect(updateDealSchema.safeParse({ ...base, title: "x" }).success).toBe(false);
+    expect(updateDealSchema.safeParse({ ...base, stage: "lost", lost_reason: " " }).success).toBe(false);
+    expect(updateDealSchema.safeParse({ ...base, stage: "lost", lost_reason: "Preço" }).success).toBe(true);
+    expect(deleteDealSchema.safeParse({ deal_id: "1; drop table" }).success).toBe(false);
   });
 });
 

@@ -5,7 +5,7 @@ import { can, type Permission } from "@/lib/auth/permissions";
 import { AuthorizationError, requireTenantContext } from "@/lib/auth/tenant-context";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { contactInfoSchema, withSources } from "@/lib/cnpj/contact-info";
-import { companySchema, dealSchema, formToObject, industrySchema, moveDealSchema } from "@/lib/validation/schemas";
+import { companySchema, dealSchema, deleteDealSchema, formToObject, industrySchema, moveDealSchema, updateDealSchema } from "@/lib/validation/schemas";
 
 /** Valida vínculo e permissão no servidor antes de qualquer escrita. */
 async function authorize(form: FormData, permission: Permission) {
@@ -97,6 +97,57 @@ export async function moveDeal(_: ActionState, form: FormData): Promise<ActionSt
     if (!data?.length) return { message: "Negócio não encontrado." };
     revalidatePath(`/app/${ctx.tenantId}/funil`);
     return { ok: true };
+  });
+}
+
+/** Edita um card do funil: título, empresa, indústria, valor e etapa. */
+export async function updateDeal(_: ActionState, form: FormData): Promise<ActionState> {
+  return guarded(form, async () => {
+    const ctx = await authorize(form, "deals.write");
+    const parsed = updateDealSchema.safeParse(formToObject(form));
+    if (!parsed.success) return { fieldErrors: zodFieldErrors(parsed.error.issues) };
+    const { deal_id, ...d } = parsed.data;
+    const supabase = await createSupabaseServerClient();
+    // As FKs compostas (tenant_id, company_id/industry_id) impedem apontar para cadastro de outra representação.
+    const { data, error } = await supabase
+      .from("deals")
+      .update({
+        title: d.title,
+        company_id: d.company_id,
+        industry_id: d.industry_id ?? null,
+        amount: d.amount ?? null,
+        stage: d.stage,
+        lost_reason: d.stage === "lost" ? d.lost_reason : null,
+      })
+      .eq("id", deal_id)
+      .eq("tenant_id", ctx.tenantId)
+      .select("id");
+    if (error) return { message: error.code === "23503" ? "Empresa ou indústria não encontrada." : dbErrorMessage(error) };
+    if (!data?.length) return { message: "Negócio não encontrado." };
+    revalidatePath(`/app/${ctx.tenantId}/funil`);
+    return { ok: true, message: "Negócio atualizado." };
+  });
+}
+
+/** Exclui um card do funil (a exclusão fica registrada na auditoria). */
+export async function deleteDeal(_: ActionState, form: FormData): Promise<ActionState> {
+  return guarded(form, async () => {
+    const ctx = await authorize(form, "deals.write");
+    const parsed = deleteDealSchema.safeParse(formToObject(form));
+    if (!parsed.success) return { message: "Negócio inválido." };
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("deals")
+      .delete()
+      .eq("id", parsed.data.deal_id)
+      .eq("tenant_id", ctx.tenantId)
+      .select("id");
+    if (error) return { message: dbErrorMessage(error) };
+    if (!data?.length) return { message: "Negócio não encontrado." };
+    revalidatePath(`/app/${ctx.tenantId}/funil`);
+    revalidatePath(`/app/${ctx.tenantId}`);
+    revalidatePath(`/app/${ctx.tenantId}/leads`);
+    return { ok: true, message: "Negócio excluído." };
   });
 }
 

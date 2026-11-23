@@ -5,16 +5,18 @@ export function Field({
   name,
   error,
   hint,
+  id,
   ...props
 }: { label: string; name: string; error?: string; hint?: string } & ComponentProps<"input">) {
-  const describedBy = [error ? `${name}-erro` : null, hint ? `${name}-dica` : null].filter(Boolean).join(" ") || undefined;
+  const fieldId = id ?? name;
+  const describedBy = [error ? `${fieldId}-erro` : null, hint ? `${fieldId}-dica` : null].filter(Boolean).join(" ") || undefined;
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={name} className="text-sm font-medium text-argos-navy">
+      <label htmlFor={fieldId} className="text-sm font-medium text-argos-navy">
         {label}
       </label>
       <input
-        id={name}
+        id={fieldId}
         name={name}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
@@ -22,12 +24,12 @@ export function Field({
         {...props}
       />
       {hint && (
-        <p id={`${name}-dica`} className="text-xs text-neutral-500">
+        <p id={`${fieldId}-dica`} className="text-xs text-neutral-500">
           {hint}
         </p>
       )}
       {error && (
-        <p id={`${name}-erro`} className="text-sm text-red-600">
+        <p id={`${fieldId}-erro`} className="text-sm text-red-600">
           {error}
         </p>
       )}

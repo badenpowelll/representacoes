@@ -77,6 +77,13 @@ export const DEAL_STAGE_LABELS: Record<DealStage, string> = {
 export const dealSchema = z.object({
   title: z.string().trim().min(2, "Informe o título").max(300),
   company_id: z.uuid("Selecione a empresa"),
+  industry_id: z
+    .string()
+    .trim()
+    .transform((v) => (v === "" ? null : v))
+    .pipe(z.uuid("Indústria inválida").nullable())
+    .nullable()
+    .optional(),
   amount: z
     .string()
     .trim()
@@ -96,6 +103,20 @@ export const moveDealSchema = z
     message: "Informe o motivo da perda",
     path: ["lost_reason"],
   });
+
+/** Edição completa de um card do funil (dados + etapa). */
+export const updateDealSchema = dealSchema
+  .extend({
+    deal_id: z.uuid("Negócio inválido"),
+    stage: z.enum(DEAL_STAGES, "Etapa inválida"),
+    lost_reason: optionalText(500),
+  })
+  .refine((v) => v.stage !== "lost" || (v.lost_reason ?? "").length > 0, {
+    message: "Informe o motivo da perda",
+    path: ["lost_reason"],
+  });
+
+export const deleteDealSchema = z.object({ deal_id: z.uuid("Negócio inválido") });
 
 /** Converte FormData em objeto simples para validação. */
 export function formToObject(form: FormData): Record<string, string> {
