@@ -9,6 +9,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ELIGIBILITY_REASON_LABELS, UF_CODES } from "@/lib/validation/schemas";
 import { buildMailto, buildWhatsAppUrl, normalizePhone, unresolvedVariables, withOptOut } from "@/lib/prospeccao/messages";
 import { findPreset, parseCnaeList } from "@/lib/prospeccao/presets";
+import { sendEmail } from "@/lib/email/send";
+import { loadTenantTemplates } from "@/lib/mensagens/load";
+import { withSignature } from "@/lib/mensagens/templates";
 
 const path = (tenantId: string) => `/app/${tenantId}/prospeccao`;
 const authError = (e: unknown, form?: FormData): ActionState => {
@@ -183,9 +186,13 @@ const outreachSchema = z.object({
   originalTo: z.string().trim().max(254).optional(),
   subject: z.string().trim().max(200).optional(),
   body: z.string().trim().min(5, "Escreva a mensagem").max(5000),
+  /** "direct": e-mail enviado pelo próprio sistema (Gmail da conta conectada). */
+  mode: z.enum(["link", "direct"]).default("link"),
+  /** Evita envio duplicado se o botão for clicado duas vezes. */
+  requestId: z.string().min(8).max(100).optional(),
 });
 
-export type OutreachResult = { ok: true; url: string; message: string } | { ok: false; message: string };
+export type OutreachResult = { ok: true; url: string | null; message: string } | { ok: false; message: string };
 
 /**
  * Prepara um envio manual: garante empresa/lead/contato na carteira, checa no
@@ -241,7 +248,29 @@ export async function prepareOutreach(input: z.input<typeof outreachSchema>): Pr
       return { ok: false, message: `Este contato não pode receber prospecção: ${reason}.` };
     }
 
-    const body = withOptOut(d.body);
+    const { signature } = d.channel === "email" ? await loadTenantTemplates(supabase, ctx.tenantId) : { signature: null };
+    const body = d.channel === "email" ? withSignature(withOptOut(d.body), signature) : withOptOut(d.body);
+    if (d.channel === "email" && d.mode === "direct") {
+      const sent = await sendEmail(supabase, {
+        tenantId: ctx.tenantId,
+        companyId: r.company_id,
+        contactId: r.contact_id,
+        to,
+        subject: d.subject ?? "",
+        body,
+        idempotencyKey: `prosp:${ctx.userId}:${d.requestId ?? `${d.cnpj}:${Date.now()}`}`,
+        purpose: "prospecting",
+      });
+      revalidatePath(path(ctx.tenantId));
+      if (!sent.ok) return { ok: false, message: sent.message };
+      return {
+        ok: true,
+        url: null,
+        message: sent.status === "sent"
+          ? `E-mail enviado${sent.from ? ` por ${sent.from}` : ""}. Ficou registrado no histórico.`
+          : "Modo de teste: o e-mail foi registrado no histórico, mas não saiu. Conecte a conta Google em Mensagens para enviar de verdade.",
+      };
+    }
     const url = d.channel === "email" ? buildMailto(to, d.subject ?? "", body) : buildWhatsAppUrl(to, body);
     if (!url) return { ok: false, message: "Não foi possível montar o link." };
     const { error: actError } = await supabase.from("activities").insert({

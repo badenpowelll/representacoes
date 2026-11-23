@@ -25,6 +25,7 @@ export default async function TenantLayout({
     { href: `${base}/empresas`, label: "Empresas" },
     { href: `${base}/prospeccao`, label: "Prospecção" },
     { href: `${base}/envios`, label: "Envios" },
+    { href: `${base}/mensagens`, label: "Mensagens" },
     { href: `${base}/leads`, label: "Leads" },
     { href: `${base}/compatibilidade`, label: "Compatibilidade" },
     { href: `${base}/funil`, label: "Funil" },

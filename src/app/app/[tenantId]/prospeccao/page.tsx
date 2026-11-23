@@ -3,7 +3,8 @@ import { requireTenantPage } from "@/lib/auth/session";
 import { can } from "@/lib/auth/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Alert, EmptyState } from "@/components/ui";
-import { DEFAULT_TEMPLATES, type Channel } from "@/lib/prospeccao/messages";
+import { type Channel } from "@/lib/prospeccao/messages";
+import { loadTenantTemplates } from "@/lib/mensagens/load";
 import { formatCnae } from "@/lib/prospeccao/presets";
 import { CnaeForm, StartIndustryForm, TemplateForm, VariablesHelp } from "./forms";
 import { ProspectTable, type ProspectRow } from "./table";
@@ -81,7 +82,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   const page = Math.max(1, Number.parseInt(sp.pagina ?? "1", 10) || 1);
   const municipality = sp.municipio && /^\d{7}$/.test(sp.municipio) ? Number(sp.municipio) : null;
 
-  const [{ data: territories }, { data: cnaeRefs }, { data: templates }, search] = await Promise.all([
+  const [{ data: territories }, { data: cnaeRefs }, { data: templates }, search, tenantTemplates] = await Promise.all([
     supabase.from("territories").select("state_code, municipality_id").eq("tenant_id", tenantId).eq("industry_id", industry.id),
     cnaes.length ? supabase.from("ref_cnaes").select("code, description").in("code", cnaes) : Promise.resolve({ data: [] }),
     supabase.from("message_templates").select("channel, subject, body").eq("tenant_id", tenantId).eq("industry_id", industry.id),
@@ -97,6 +98,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
       p_limit: PAGE_SIZE,
       p_offset: (page - 1) * PAGE_SIZE,
     }),
+    loadTenantTemplates(supabase, tenantId),
   ]);
 
   const states = [...new Set((territories ?? []).map((t) => t.state_code as string))].sort();
@@ -113,7 +115,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   const lastImport = (imports ?? []).find((i) => states.some((s) => (i.states as string[]).includes(s)));
   const tpl = (channel: Channel) => {
     const saved = templates?.find((t) => t.channel === channel);
-    return { subject: saved?.subject ?? DEFAULT_TEMPLATES[channel].subject, body: saved?.body ?? DEFAULT_TEMPLATES[channel].body, saved: Boolean(saved) };
+    return { subject: saved?.subject ?? tenantTemplates.prospeccao[channel].subject, body: saved?.body ?? tenantTemplates.prospeccao[channel].body, saved: Boolean(saved) };
   };
   const query = (over: Partial<Search>) => {
     const p = new URLSearchParams();

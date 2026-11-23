@@ -314,7 +314,13 @@ test("compatibilidade: calcula score explicável e aprovação gera lead", async
   await page.getByRole("button", { name: "Cadastrar indústria" }).click();
   await expect(page.getByRole("cell", { name: "Cerâmica Epsilon" })).toBeVisible();
 
-  await page.getByRole("link", { name: "Territórios" }).click();
+  // Sem área de atuação, a tela diz o que falta em vez de ficar vazia.
+  await page.getByRole("link", { name: "Compatibilidade" }).click();
+  await page.getByRole("button", { name: "Ver empresas compatíveis" }).click();
+  await expect(page.getByText("A Cerâmica Epsilon ainda não tem área de atuação.")).toBeVisible();
+
+  await page.getByRole("link", { name: "Territórios" }).first().click();
+  await expect(page).toHaveURL(/\/territorios/);
   await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Cerâmica Epsilon" });
   await page.getByLabel("UF", { exact: true }).selectOption("RN");
   await page.getByLabel("UF inteira").check();
@@ -335,11 +341,12 @@ test("compatibilidade: calcula score explicável e aprovação gera lead", async
   }
 
   await page.getByRole("link", { name: "Compatibilidade" }).click();
-  await page.getByRole("button", { name: "Calcular compatibilidade" }).click();
+  await page.getByLabel("Indústria").selectOption({ label: "Cerâmica Epsilon" });
+  await page.getByRole("button", { name: "Ver empresas compatíveis" }).click();
   const item = page.getByRole("listitem").filter({ hasText: "Depósito Mossoró" }).first();
   await expect(item).toContainText("70/100");
-  await expect(item).toContainText("Cobertura na UF RN");
-  await expect(item).toContainText("CNAE 4744001 é alvo");
+  await expect(item).toContainText("Fica em RN, onde a indústria atua");
+  await expect(item).toContainText("A atividade (CNAE 4744001) é uma das que a indústria procura");
   await expect(page.getByText("Loja Fortaleza")).toHaveCount(0);
   await item.getByRole("button", { name: "Aprovar e criar lead" }).click();
   await expect(page.getByRole("listitem").filter({ hasText: "Depósito Mossoró" }).first()).toContainText("Aprovado");

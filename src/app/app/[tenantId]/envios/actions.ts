@@ -7,6 +7,9 @@ import { requireTenantContext } from "@/lib/auth/tenant-context";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { finalMessage, linkExpiry } from "@/lib/catalogos/envio";
 import { buildMailto, buildWhatsAppUrl } from "@/lib/prospeccao/messages";
+import { sendEmail } from "@/lib/email/send";
+import { loadTenantTemplates } from "@/lib/mensagens/load";
+import { withSignature } from "@/lib/mensagens/templates";
 
 const createSchema = z.object({
   version_id: z.uuid(),
@@ -55,9 +58,11 @@ const sendSchema = z.object({
   recipientId: z.uuid(),
   subject: z.string().max(300).optional(),
   body: z.string().trim().min(1).max(4000),
+  /** "direct": o próprio sistema envia pelo Gmail da conta conectada (só e-mail). */
+  mode: z.enum(["link", "direct"]).default("link"),
 });
 
-export type SendResult = { ok: true; url: string; alreadySent: boolean } | { ok: false; message: string };
+export type SendResult = { ok: true; url: string | null; alreadySent: boolean; message?: string } | { ok: false; message: string };
 
 /**
  * Um envio da fila: confere de novo a elegibilidade no banco, registra a
@@ -73,12 +78,14 @@ export async function sendToRecipient(input: z.input<typeof sendSchema>): Promis
   const supabase = await createSupabaseServerClient();
   const { data: rc } = await supabase
     .from("campaign_recipients")
-    .select("id, campaign_id, contacts(email, phone), campaigns(channel, link_expires_at, catalog_versions(storage_path, status))")
+    .select("id, campaign_id, company_id, contact_id, contacts(email, phone), campaigns(channel, link_expires_at, catalog_versions(storage_path, status))")
     .eq("tenant_id", ctx.tenantId)
     .eq("id", d.recipientId)
     .maybeSingle();
   type Rc = {
     campaign_id: string;
+    company_id: string;
+    contact_id: string | null;
     contacts: { email: string | null; phone: string | null } | null;
     campaigns: { channel: "email" | "whatsapp"; link_expires_at: string; catalog_versions: { storage_path: string; status: string } | null } | null;
   };
@@ -91,8 +98,37 @@ export async function sendToRecipient(input: z.input<typeof sendSchema>): Promis
   const { data: signed, error: signError } = await supabase.storage.from("catalogs").createSignedUrl(cv.storage_path, seconds);
   if (signError || !signed?.signedUrl) return { ok: false, message: "Não foi possível gerar o link do catálogo." };
 
-  const body = finalMessage(d.body, signed.signedUrl);
   const channel = r.campaigns.channel;
+  if (d.mode === "direct") {
+    if (channel !== "email") return { ok: false, message: "O envio pelo sistema é só para e-mail." };
+    const to = r.contacts?.email;
+    if (!to || !r.contact_id) return { ok: false, message: "Contato sem e-mail." };
+    const { signature } = await loadTenantTemplates(supabase, ctx.tenantId);
+    const sent = await sendEmail(supabase, {
+      tenantId: ctx.tenantId,
+      companyId: r.company_id,
+      contactId: r.contact_id,
+      to,
+      subject: d.subject?.trim() || "Catálogo",
+      body: withSignature(finalMessage(d.body, signed.signedUrl), signature),
+      // Um envio por destinatário do lote, não importa quantas vezes clicar.
+      idempotencyKey: `camp:${d.recipientId}`,
+      purpose: "catalog_distribution",
+      campaignRecipientId: d.recipientId,
+    });
+    revalidatePath(`/app/${ctx.tenantId}/envios/${r.campaign_id}`);
+    if (!sent.ok) return { ok: false, message: sent.message };
+    return {
+      ok: true,
+      url: null,
+      alreadySent: sent.duplicate,
+      message: sent.status === "sent"
+        ? `E-mail enviado${sent.from ? ` por ${sent.from}` : ""}.`
+        : "Modo de teste: registrado no histórico, mas o e-mail não saiu.",
+    };
+  }
+
+  const body = finalMessage(d.body, signed.signedUrl);
   const to = channel === "email" ? r.contacts?.email : r.contacts?.phone;
   const url = to ? (channel === "email" ? buildMailto(to, d.subject ?? "Catálogo", body) : buildWhatsAppUrl(to, body)) : null;
   if (!url) return { ok: false, message: channel === "email" ? "Contato sem e-mail." : "Contato sem telefone válido." };

@@ -35,9 +35,9 @@ export function CampaignQueue({ tenantId, channel, rows, canSend }: { tenantId: 
     const win = channel === "whatsapp" ? window.open("about:blank", "_blank") : null;
     start(async () => {
       const res = await sendToRecipient({ tenantId, recipientId: r.id, subject: d.subject, body: d.body });
-      if (!res.ok) {
+      if (!res.ok || !res.url) {
         win?.close();
-        setErrors((e) => ({ ...e, [r.id]: res.message }));
+        setErrors((e) => ({ ...e, [r.id]: res.ok ? "Não foi possível montar o link." : res.message }));
         return;
       }
       if (win) win.location.href = res.url;
@@ -47,7 +47,55 @@ export function CampaignQueue({ tenantId, channel, rows, canSend }: { tenantId: 
     });
   }
 
+  async function sendDirectOne(r: QueueRow) {
+    const d = draft(r);
+    const res = await sendToRecipient({ tenantId, recipientId: r.id, subject: d.subject, body: d.body, mode: "direct" });
+    if (!res.ok) {
+      setErrors((e) => ({ ...e, [r.id]: res.message }));
+      return false;
+    }
+    setErrors((e) => ({ ...e, [r.id]: "" }));
+    setDone((x) => ({ ...x, [r.id]: res.alreadySent ? "Já estava registrado como enviado." : (res.message ?? "Enviado.") }));
+    return true;
+  }
+
+  function sendDirect(r: QueueRow) {
+    start(async () => {
+      if (await sendDirectOne(r)) setOpen(nextAfter(r.id));
+    });
+  }
+
+  const queued = rows.filter((r) => r.status === "pending" && !done[r.id]);
+  const [progress, setProgress] = useState<string | null>(null);
+  function sendAll() {
+    start(async () => {
+      let ok = 0;
+      let fail = 0;
+      for (const [i, r] of queued.entries()) {
+        setProgress(`Enviando ${i + 1} de ${queued.length}...`);
+        if (await sendDirectOne(r)) ok++;
+        else fail++;
+      }
+      setOpen(null);
+      setProgress(`${ok} enviado(s)${fail ? `, ${fail} não enviado(s) (veja o motivo em cada um)` : ""}.`);
+    });
+  }
+
   return (
+    <div className="flex flex-col gap-3">
+    {channel === "email" && canSend && (queued.length > 0 || progress) && (
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border p-3 text-sm">
+        {queued.length > 0 && (
+          <button type="button" disabled={pending} onClick={sendAll} className="rounded-md bg-blue-700 px-4 py-2 font-medium text-white disabled:opacity-60">
+            Enviar todos pelo sistema ({queued.length})
+          </button>
+        )}
+        <span className="text-neutral-600 dark:text-neutral-400">
+          Envia pela conta Google conectada em Mensagens, com a mensagem padrão de cada cliente (ou a que você editou). Cada cliente recebe uma vez só.
+        </span>
+        {progress && <p role="status" className="w-full font-medium">{progress}</p>}
+      </div>
+    )}
     <ul className="flex flex-col divide-y rounded-lg border">
       {rows.map((r) => {
         const status = done[r.id] ? "sent" : r.status;
@@ -91,8 +139,13 @@ export function CampaignQueue({ tenantId, channel, rows, canSend }: { tenantId: 
                 </label>
                 <div className="flex flex-wrap gap-2">
                   <button type="button" disabled={pending} onClick={() => send(r)} className="rounded-md bg-blue-700 px-4 py-2 font-medium text-white disabled:opacity-60">
-                    {channel === "email" ? "Abrir no e-mail" : "Abrir no WhatsApp"}
+                    {channel === "email" ? "Abrir no meu e-mail" : "Abrir no WhatsApp"}
                   </button>
+                  {channel === "email" && (
+                    <button type="button" disabled={pending} onClick={() => sendDirect(r)} className="rounded-md border border-blue-700 px-4 py-2 font-medium text-blue-800 disabled:opacity-60 dark:text-blue-200">
+                      Enviar pelo sistema
+                    </button>
+                  )}
                   <form action={skipRecipient}>
                     <input type="hidden" name="tenant_id" value={tenantId} />
                     <input type="hidden" name="recipient_id" value={r.id} />
@@ -105,5 +158,6 @@ export function CampaignQueue({ tenantId, channel, rows, canSend }: { tenantId: 
         );
       })}
     </ul>
+    </div>
   );
 }
