@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 export type NavItem = { href: string; label: string; icon: IconName };
-export type NavGroup = { label: string; items: NavItem[] };
+export type NavGroup = { label: string; icon: IconName; items: NavItem[] };
 
 /**
  * Casca da área autenticada no padrão visual Argos: menu lateral branco com o símbolo
@@ -35,35 +35,68 @@ export function AppShell({
   const isActive = (href: string) => (href === homeHref ? pathname === href : pathname === href || pathname.startsWith(`${href}/`));
   const current = groups.flatMap((g) => g.items).find((i) => isActive(i.href));
 
-  const nav = (
-    <nav aria-label="Principal" className="flex flex-col gap-6 px-3 py-4">
-      {groups.map((g) => (
-        <div key={g.label}>
-          <p className="px-3 pb-2 text-[11px] font-semibold tracking-[0.08em] text-neutral-500 uppercase">{g.label}</p>
-          <ul className="flex flex-col gap-0.5">
-            {g.items.map((item) => {
-              const active = isActive(item.href);
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    aria-current={active ? "page" : undefined}
-                    className={`group relative flex items-center gap-3 rounded-[10px] px-3 py-2 text-sm transition-colors ${
-                      active
-                        ? "bg-argos-tint-navy/70 font-semibold text-argos-navy"
-                        : "text-neutral-700 hover:bg-neutral-100 hover:text-argos-navy"
-                    }`}
-                  >
-                    {active && <span aria-hidden="true" className="absolute top-2 bottom-2 left-0 w-[3px] rounded-full bg-argos-orange" />}
-                    <Icon name={item.icon} className={active ? "text-argos-navy" : "text-neutral-500 group-hover:text-argos-navy"} />
-                    {item.label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
+  const activeGroup = groups.find((g) => g.items.some((i) => isActive(i.href)))?.label;
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(activeGroup ? [activeGroup] : []));
+  // Ao navegar, o grupo da tela atual abre (os outros ficam como o usuário deixou).
+  useEffect(() => {
+    if (activeGroup) setExpanded((prev) => (prev.has(activeGroup) ? prev : new Set(prev).add(activeGroup)));
+  }, [activeGroup]);
+  const toggle = (label: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+
+  const nav = (idPrefix: string) => (
+    <nav aria-label="Principal" className="flex flex-col gap-1 px-3 py-4">
+      {groups.map((g) => {
+        const isOpen = expanded.has(g.label);
+        const hasActive = g.label === activeGroup;
+        const listId = `${idPrefix}-grupo-${slug(g.label)}`;
+        return (
+          <div key={g.label}>
+            <button
+              type="button"
+              aria-expanded={isOpen}
+              aria-controls={listId}
+              onClick={() => toggle(g.label)}
+              className={`flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-sm font-semibold transition-colors hover:bg-neutral-100 ${
+                hasActive ? "text-argos-navy" : "text-neutral-700"
+              }`}
+            >
+              <Icon name={g.icon} className={hasActive ? "text-argos-orange" : "text-neutral-500"} />
+              <span className="flex-1">{g.label}</span>
+              <Icon name="chevron" className={`text-neutral-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+            </button>
+            <ul id={listId} hidden={!isOpen} className="mt-0.5 mb-2 ml-[1.35rem] flex flex-col gap-0.5 border-l border-neutral-200 pl-2">
+              {g.items.map((item) => {
+                const active = isActive(item.href);
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      aria-current={active ? "page" : undefined}
+                      className={`group relative flex items-center gap-3 rounded-[10px] px-3 py-2 text-sm transition-colors ${
+                        active
+                          ? "bg-argos-tint-navy/70 font-semibold text-argos-navy"
+                          : "text-neutral-700 hover:bg-neutral-100 hover:text-argos-navy"
+                      }`}
+                    >
+                      {active && (
+                        <span aria-hidden="true" className="absolute top-2 bottom-2 -left-[9px] w-[3px] rounded-full bg-argos-orange" />
+                      )}
+                      <Icon name={item.icon} className={active ? "text-argos-navy" : "text-neutral-500 group-hover:text-argos-navy"} />
+                      {item.label}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        );
+      })}
     </nav>
   );
 
@@ -84,7 +117,7 @@ export function AppShell({
       {/* Menu lateral (desktop) */}
       <aside className="sticky top-0 hidden h-screen flex-col border-r bg-white lg:flex">
         <div className="flex h-16 items-center border-b px-4">{brand}</div>
-        <div className="flex-1 overflow-y-auto">{nav}</div>
+        <div className="flex-1 overflow-y-auto">{nav("lateral")}</div>
         <div className="border-t px-5 py-4 text-xs text-neutral-500">
           <p className="font-medium text-argos-navy">Onde dados se tornam decisão.</p>
         </div>
@@ -106,7 +139,7 @@ export function AppShell({
                 <Icon name="close" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto">{nav}</div>
+            <div className="flex-1 overflow-y-auto">{nav("movel")}</div>
           </aside>
         </div>
       )}
@@ -154,7 +187,10 @@ export type IconName =
   | "kanban"
   | "users"
   | "menu"
-  | "close";
+  | "close"
+  | "chevron"
+  | "briefcase"
+  | "chart";
 
 const PATHS: Record<IconName, ReactNode> = {
   dashboard: (
@@ -227,6 +263,14 @@ const PATHS: Record<IconName, ReactNode> = {
     </>
   ),
   menu: <path d="M4 6h16M4 12h16M4 18h16" />,
+  chevron: <path d="m6 9 6 6 6-6" />,
+  briefcase: (
+    <>
+      <rect x="3" y="7" width="18" height="13" rx="2" />
+      <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18" />
+    </>
+  ),
+  chart: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />,
   close: <path d="M6 6l12 12M18 6 6 18" />,
 };
 
@@ -247,4 +291,12 @@ export function Icon({ name, className = "" }: { name: IconName; className?: str
       {PATHS[name]}
     </svg>
   );
+}
+
+function slug(s: string) {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-");
 }

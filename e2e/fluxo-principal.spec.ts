@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { totp } from "../tests/support/totp";
+import { openMenu } from "./menu";
 
 const MAILPIT = process.env.E2E_MAILPIT_URL ?? "http://127.0.0.1:54324";
 const run = Date.now().toString(36);
@@ -80,7 +81,7 @@ test("cadastro, onboarding, CRM, funil e isolamento entre representações", asy
   await expect(a.getByRole("heading", { name: "Painel" })).toBeVisible();
   const tenantUrl = a.url();
   await expect(a.getByText("Você está com acesso somente de leitura")).toBeVisible();
-  await a.getByRole("link", { name: "Indústrias" }).click();
+  await openMenu(a, "Indústrias");
   await expect(a.getByRole("button", { name: "Cadastrar indústria" })).toHaveCount(0);
   await a.getByRole("link", { name: "Ativar ou confirmar agora" }).click();
   const secretA = await enrollTotp(a);
@@ -88,17 +89,17 @@ test("cadastro, onboarding, CRM, funil e isolamento entre representações", asy
   await expect(a.getByText("Você está com acesso somente de leitura")).toHaveCount(0);
 
   // Indústria com CNPJ inválido → erro; válido → listado
-  await a.getByRole("link", { name: "Indústrias" }).click();
+  await openMenu(a, "Indústrias");
   await a.getByLabel("Nome").fill("Cimentos Exemplo");
   await a.getByLabel("CNPJ").fill("11.222.333/0001-00");
   await a.getByRole("button", { name: "Cadastrar indústria" }).click();
   await expect(a.getByText("CNPJ inválido")).toBeVisible();
   await a.getByLabel("CNPJ").fill("11.222.333/0001-81");
   await a.getByRole("button", { name: "Cadastrar indústria" }).click();
-  await expect(a.getByRole("cell", { name: "Cimentos Exemplo" })).toBeVisible();
+  await expect(a.getByRole("heading", { name: "Cimentos Exemplo" })).toBeVisible();
 
   // Empresa
-  await a.getByRole("link", { name: "Empresas" }).click();
+  await openMenu(a, "Empresas");
   await a.getByLabel("Razão social").fill("Loja de Materiais Natal");
   await a.getByLabel("UF").selectOption("RN");
   await a.getByLabel("Origem do dado").fill("indicação de cliente");
@@ -145,7 +146,7 @@ test("cadastro, onboarding, CRM, funil e isolamento entre representações", asy
     .toContainText("Comunicação bloqueada: e-mail ou domínio na lista de supressão");
 
   // Funil: criar, mover, perda sem motivo bloqueada
-  await a.getByRole("link", { name: "Funil" }).click();
+  await openMenu(a, "Funil");
   await a.getByLabel("Título").fill("Pedido de cimento");
   await a.getByLabel("Empresa").selectOption({ label: "Loja de Materiais Natal" });
   await a.getByLabel("Valor (R$)").fill("12.500,00");
@@ -156,7 +157,7 @@ test("cadastro, onboarding, CRM, funil e isolamento entre representações", asy
   await novo.getByRole("button", { name: "Mover" }).click();
   await expect(a.getByRole("region", { name: /Ganho/ }).getByText("Pedido de cimento")).toBeVisible();
 
-  await a.getByRole("link", { name: "Painel" }).click();
+  await openMenu(a, "Painel");
   await expect(a.getByText("R$ 12.500,00")).toBeVisible();
 
   // Outro usuário não acessa a representação de Alfa pela URL
@@ -200,7 +201,7 @@ test("convite: admin gera link, convidado se cadastra e entra com o papel defini
   await createTenant(admin, "Gama Representações", `gama-${run}`);
   const tenantUrl = admin.url();
 
-  await admin.getByRole("link", { name: "Equipe" }).click();
+  await openMenu(admin, "Equipe");
   await admin.getByLabel("E-mail do convidado").fill(`davi-${run}@gama.test`);
   await admin.getByLabel("Papel").selectOption("representative");
   await admin.getByRole("button", { name: "Gerar convite" }).click();
@@ -241,7 +242,7 @@ test("contexto comercial e territórios", async ({ browser }) => {
   await signUpAndConfirm(page, "Edu Admin", `edu-${run}@delta.test`, `Senha-forte-${run}`);
   await createTenant(page, "Delta Representações", `delta-${run}`);
 
-  await page.getByRole("link", { name: "Contexto" }).click();
+  await openMenu(page, "Contexto");
   await page.getByLabel("CNAEs-alvo").fill("4744-0/01, 123");
   await page.getByRole("button", { name: "Salvar contexto" }).click();
   await expect(page.getByText("Cada CNAE deve ter 7 dígitos")).toBeVisible();
@@ -253,13 +254,13 @@ test("contexto comercial e territórios", async ({ browser }) => {
   await page.reload();
   await expect(page.getByLabel("CNAEs-alvo")).toHaveValue("4744001, 4742300");
 
-  await page.getByRole("link", { name: "Indústrias" }).click();
+  await openMenu(page, "Indústrias");
   await page.getByLabel("Nome").fill("Tintas Delta");
   await page.getByRole("button", { name: "Cadastrar indústria" }).click();
-  await expect(page.getByRole("cell", { name: "Tintas Delta" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tintas Delta" })).toBeVisible();
 
   // Territórios em cascata: Região (filtro) → Estados → Municípios (todos ou um a um).
-  await page.getByRole("link", { name: "Territórios" }).click();
+  await openMenu(page, "Territórios");
   await expect(page.getByLabel("Indústria", { exact: true })).toHaveValue(/.+/); // única indústria já vem escolhida
   await page.getByRole("button", { name: "Salvar territórios" }).click();
   await expect(page.getByText("Escolha ao menos um estado.")).toBeVisible();
@@ -318,17 +319,17 @@ test("compatibilidade: calcula score explicável e aprovação gera lead", async
   await signUpAndConfirm(page, "Fábio Admin", `fabio-${run}@epsilon.test`, `Senha-forte-${run}`);
   await createTenant(page, "Epsilon Representações", `epsilon-${run}`);
 
-  await page.getByRole("link", { name: "Contexto" }).click();
+  await openMenu(page, "Contexto");
   await page.getByLabel("CNAEs-alvo").fill("4744001");
   await page.getByRole("button", { name: "Salvar contexto" }).click();
   await expect(page.getByText("Contexto comercial salvo.")).toBeVisible();
 
-  await page.getByRole("link", { name: "Indústrias" }).click();
+  await openMenu(page, "Indústrias");
   await page.getByLabel("Nome").fill("Cerâmica Epsilon");
   await page.getByRole("button", { name: "Cadastrar indústria" }).click();
-  await expect(page.getByRole("cell", { name: "Cerâmica Epsilon" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Cerâmica Epsilon" })).toBeVisible();
 
-  await page.getByRole("link", { name: "Territórios" }).click();
+  await openMenu(page, "Territórios");
   await page.getByLabel("RN · Rio Grande do Norte").check();
   await page.getByRole("button", { name: "Salvar territórios" }).click();
   await expect(page.getByText("Cobertura adicionada: RN (todos os municípios).")).toBeVisible();
@@ -337,7 +338,7 @@ test("compatibilidade: calcula score explicável e aprovação gera lead", async
     ["Depósito Mossoró", "RN"],
     ["Loja Fortaleza", "CE"],
   ]) {
-    await page.getByRole("link", { name: "Empresas" }).click();
+    await openMenu(page, "Empresas");
     await page.getByLabel("Razão social").fill(name);
     await page.getByLabel("CNAE principal").fill("4744001");
     await page.getByLabel("UF").selectOption(uf);
@@ -346,7 +347,7 @@ test("compatibilidade: calcula score explicável e aprovação gera lead", async
     await expect(page.getByRole("cell", { name })).toBeVisible();
   }
 
-  await page.getByRole("link", { name: "Compatibilidade" }).click();
+  await openMenu(page, "Compatibilidade");
   await page.getByRole("button", { name: "Calcular compatibilidade" }).click();
   const item = page.getByRole("listitem").filter({ hasText: "Depósito Mossoró" }).first();
   await expect(item).toContainText("70/100");
@@ -356,7 +357,7 @@ test("compatibilidade: calcula score explicável e aprovação gera lead", async
   await item.getByRole("button", { name: "Aprovar e criar lead" }).click();
   await expect(page.getByRole("listitem").filter({ hasText: "Depósito Mossoró" }).first()).toContainText("Aprovado");
 
-  await page.getByRole("link", { name: "Painel" }).click();
+  await openMenu(page, "Painel");
   await expect(page.locator("div").filter({ hasText: /^Leads1$/ })).toBeVisible();
 });
 
@@ -364,7 +365,7 @@ test("catálogos: sem indústria cadastrada, cria a indústria no próprio envio
   const page = await (await browser.newContext()).newPage();
   await signUpAndConfirm(page, "Hilda Admin", `hilda-${run}@teta.test`, `Senha-forte-${run}`);
   await createTenant(page, "Teta Representações", `teta-${run}`);
-  await page.getByRole("link", { name: "Catálogos" }).click();
+  await openMenu(page, "Catálogos");
   await expect(page.getByText("Cadastre uma indústria antes")).toHaveCount(0);
   // Sem indústrias, o formulário já abre em "nova indústria".
   await expect(page.getByLabel("Indústria", { exact: true })).toHaveValue("nova");
@@ -392,20 +393,20 @@ test("catálogos: sem indústria cadastrada, cria a indústria no próprio envio
   await page.getByRole("button", { name: "Enviar catálogo" }).click();
   await expect(page.getByText("Catálogo enviado como rascunho.")).toBeVisible();
 
-  await page.getByRole("link", { name: "Indústrias" }).click();
-  await expect(page.getByRole("cell", { name: "Têxtil Teta" })).toHaveCount(1);
+  await openMenu(page, "Indústrias");
+  await expect(page.getByRole("heading", { name: "Têxtil Teta" })).toHaveCount(1);
 });
 
 test("catálogos: envia PDF privado, rejeita arquivo que não é PDF", async ({ browser }) => {
   const page = await (await browser.newContext()).newPage();
   await signUpAndConfirm(page, "Gil Admin", `gil-${run}@zeta.test`, `Senha-forte-${run}`);
   await createTenant(page, "Zeta Representações", `zeta-${run}`);
-  await page.getByRole("link", { name: "Indústrias" }).click();
+  await openMenu(page, "Indústrias");
   await page.getByLabel("Nome").fill("Metais Zeta");
   await page.getByRole("button", { name: "Cadastrar indústria" }).click();
-  await expect(page.getByRole("cell", { name: "Metais Zeta" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Metais Zeta" })).toBeVisible();
 
-  await page.getByRole("link", { name: "Catálogos" }).click();
+  await openMenu(page, "Catálogos");
   await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Metais Zeta" });
   await page.getByLabel("Título").fill("Linha 2027");
   await page.getByLabel("Arquivo PDF").setInputFiles({ name: "falso.pdf", mimeType: "application/pdf", buffer: Buffer.from("não sou pdf") });
@@ -427,7 +428,7 @@ test("catálogos: envia PDF privado, rejeita arquivo que não é PDF", async ({ 
   expect((await res.body()).subarray(0, 5).toString()).toBe("%PDF-");
 
   // Produtos: preço autorizado com vigência, vínculo ao catálogo e SKU único por indústria
-  await page.getByRole("link", { name: "Produtos" }).click();
+  await openMenu(page, "Produtos");
   await expect(page.getByRole("heading", { name: "Novo produto" })).toBeVisible();
   await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Metais Zeta" });
   await page.getByLabel("SKU").fill("PRF-10");
@@ -464,13 +465,13 @@ test("prospecção manual: fonte obrigatória, CNPJ reaproveitado e lead levado 
   await signUpAndConfirm(page, "Hugo Admin", `hugo-${run}@eta.test`, `Senha-forte-${run}`);
   await createTenant(page, "Eta Representações", `eta-${run}`);
   for (const name of ["Telhas Eta", "Tubos Eta"]) {
-    await page.getByRole("link", { name: "Indústrias" }).click();
+    await openMenu(page, "Indústrias");
     await page.getByLabel("Nome").fill(name);
     await page.getByRole("button", { name: "Cadastrar indústria" }).click();
-    await expect(page.getByRole("cell", { name })).toBeVisible();
+    await expect(page.getByRole("heading", { name })).toBeVisible();
   }
 
-  await page.getByRole("link", { name: "Leads" }).click();
+  await openMenu(page, "Leads");
   await expect(page.getByRole("heading", { name: "Novo prospect" })).toBeVisible();
   await page.getByLabel("Indústria", { exact: true }).selectOption({ label: "Telhas Eta" });
   await page.getByLabel("Razão social").fill("Construtora Mossoró");
@@ -504,6 +505,6 @@ test("prospecção manual: fonte obrigatória, CNPJ reaproveitado e lead levado 
   await expect(telhas).toContainText("No funil");
   await expect(telhas).toContainText("Qualificado");
 
-  await page.getByRole("link", { name: "Funil" }).click();
+  await openMenu(page, "Funil");
   await expect(page.getByRole("region", { name: /Novo/ }).getByText("Construtora Mossoró · Telhas Eta")).toBeVisible();
 });
